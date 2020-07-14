@@ -1,0 +1,103 @@
+/*
+Select 'SELECT * FROM '+B.name +' WHERE '+ A.name +'< 4500'from sys.columns A Inner Join sys.tables B on A.object_id=B.object_id where A.name like '%WT_Project_Id%' 
+
+Sp_DelCompeleteProject '16'
+
+DECLARE @_vDelProj VARCHAR(MAX)
+SELECT @_vDelProj=(SELECT CAST(WT_Project_Id AS VARCHAR)+',' FROM GPM_WT_Project WHERE WT_Project_Id<4500 FOR XML PATH(''))
+--SELECT @_vDelProj
+SELECT ''''+SUBSTRING(@_vDelProj,0,LEN(@_vDelProj))+''''
+
+*/
+
+ALTER PROCEDURE [dbo].[Sp_DelCompeleteProject]
+
+@vWT_Project_Id VARCHAR(MAX)
+
+AS
+
+BEGIN
+DECLARE @_vDelProj_Id VARCHAR(10)
+DECLARE @vDelTable TABLE (WT_Project_Id VARCHAR(10))
+
+INSERT INTO @vDelTable
+SELECT Value FROM Fn_SplitDelimetedData(',',@vWT_Project_Id)
+
+DECLARE DEL_ProjectCursor CURSOR LOCAL FOR
+	SELECT WT_Project_Id FROM @vDelTable
+
+OPEN DEL_ProjectCursor
+	FETCH NEXT FROM DEL_ProjectCursor INTO @_vDelProj_Id
+
+	WHILE @@FETCH_STATUS = 0
+	
+	BEGIN
+
+				DECLARE @_vWT_Project_Id INT = CAST(@_vDelProj_Id AS INT)
+
+				DELETE FROM GPM_WT_Project_Team_Deliverable WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Team WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_TDC_Saving_Baseline WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_TDC_Saving WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Status_History WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Notification WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_GBS_Saving_Baseline WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_GBS_Saving_ActFcst WHERE WT_Project_ID=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Gate_Appr_Request WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Gate_Action_History WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Gate WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Deliverable WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_BP_Gate WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_BP_Criteria_Comments WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_BP_Criteria WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Attachment WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project_Alert WHERE WT_Project_Id=@_vWT_Project_Id
+				DELETE FROM GPM_WT_Project WHERE WT_Project_ID=@_vWT_Project_Id 
+
+				FETCH NEXT FROM DEL_ProjectCursor INTO @_vDelProj_Id
+	END
+
+	CLOSE DEL_ProjectCursor;
+
+	DEALLOCATE DEL_ProjectCursor;
+END
+
+
+/*
+DELETE FROM GPM_WT_GBS_MS_Attrib
+DELETE FROM GPM_WT_GBSExec_MS_Attrib
+DELETE FROM GPM_WT_GDI_MS_Attrib
+DELETE FROM GPM_WT_Idea_MS_Attrib
+DELETE FROM GPM_WT_DMAIC_MS_Attrib
+DELETE FROM GPM_WT_Replication_MS_Attrib
+DELETE FROM GPM_WT_GBS
+DELETE FROM GPM_WT_GBSExec
+DELETE FROM GPM_WT_GDI
+
+DELETE FROM GPM_WT_IMA
+DELETE FROM GPM_WT_MDPO
+DELETE FROM GPM_WT_NMTP
+DELETE FROM GPM_WT_Procurement
+DELETE FROM GPM_WT_Procurement_Simple
+DELETE FROM GPM_WT_DMAIC
+DELETE FROM GPM_WT_Replication
+DELETE FROM GPM_WT_Idea
+*/
+
+DELETE FROM GPM_WT_Layout_Tag_Value
+DELETE FROM GPM_WT_Layout_Tag_Order
+DELETE FROM GPM_WT_Layout_Sharing
+DELETE FROM GPM_WT_Layout_PL_Tag_Value
+DELETE FROM GPM_WT_Layout_Metrics_Value_Old
+DELETE FROM GPM_WT_Layout_Metrics_Value
+DELETE FROM GPM_WT_Layout_Custom_Fields
+DELETE FROM GPM_WT_Layout
+
+DELETE FROM GPM_WT_Portfolio_Tag_Value
+DELETE FROM GPM_WT_Portfolio_Sharing
+DELETE FROM GPM_WT_Portfolio_Proj_Member
+DELETE FROM GPM_WT_Portfolio_DescendFrom
+DELETE FROM GPM_WT_Portfolio_Advance_Filter
+DELETE FROM GPM_WT_Portfolio
+DELETE FROM GPM_WT_BP_Dashboard
+DELETE FROM GPM_WT_DashBoard

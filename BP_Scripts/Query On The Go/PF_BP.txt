@@ -1,0 +1,39 @@
+CREATE TABLE GPM_Portfolio_BP_Status_Tag
+(
+BP_Status_Tag_ID INT,
+BP_Status_Tag VARCHAR(100),
+BP_Status_Tag_Desc VARCHAR(500),
+Is_Deleted_Ind CHAR(1) DEFAULT 'N'
+)
+
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (10,'None','Project not Submitted as a Best Practice')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (11,'Plant Nomination','Project Submitted')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (12,'Regional Analysis','Plant Nomination  Gate Approved')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (13,'Global Analysis','Regional Analysis Gate Approved')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (14,'Process Council','Global Analysis Gate Approved')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (15,'Certified Could','Process Council Gate Approved and Council Scoring = Could')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (16,'Certified Should','Process Council Gate Approved and Council Scoring = Should')
+INSERT INTO GPM_Portfolio_BP_Status_Tag (BP_Status_Tag_ID,BP_Status_Tag,BP_Status_Tag_Desc)
+VALUES (17,'Certified Must','Process Council Gate Approved and Council Scoring = Must')
+
+/*
+CREATE TABLE GPM_WT_Portfolio_BP_Status_Tag
+(
+Portfolio_Id INT,
+BP_Status_Tag_ID INT
+)
+*/
+
+INSERT INTO GPM_Portfolio_Tag (Portfolio_Tag_Id,WT_Code,TG_Table_Name,TG_Table_PK_ColName,TG_Table_ColName_Desc,TG_Table_ColName_Custom_Desc,WT_Table_Name,WT_Table_FK_ColName,Is_Deleted_Ind)
+VALUES (123,'GDI','GPM_Portfolio_BP_Status_Tag','BP_Status_Tag_ID','BP_Status_Tag','Best Practice Status','GPM_WT_GDI','','N')
+INSERT INTO GPM_Portfolio_Tag (Portfolio_Tag_Id,WT_Code,TG_Table_Name,TG_Table_PK_ColName,TG_Table_ColName_Desc,TG_Table_ColName_Custom_Desc,WT_Table_Name,WT_Table_FK_ColName,Is_Deleted_Ind)
+VALUES (124,'FI','GPM_Portfolio_BP_Status_Tag','BP_Status_Tag_ID','BP_Status_Tag','Best Practice Status','GPM_WT_DMAIC','','N')
+
+Update GPM_Portfolio_Tag SET WT_Table_FK_ColName = 'BP_Status_Id' WHERE Portfolio_Tag_Id IN(123,124)

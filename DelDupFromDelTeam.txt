@@ -1,0 +1,30 @@
+SELECT * FROM GPM_WT_Project_Team_Deliverable
+
+SELECT distinct WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id FROM GPM_WT_Project_Team_Deliverable
+
+WITH CTE_Del_Dup AS
+(
+ SELECT  WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id, GD_User_Id,count(*) AS Rec_Count FROM GPM_WT_Project_Team_Deliverable
+ GROUP BY WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id, GD_User_Id having count(*)>1
+ )
+ Delete FROM CTE_Del_Dup WHERE Rec_Count>1
+
+
+ 
+ SELECT  WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id, GD_User_Id INTO #temp FROM GPM_WT_Project_Team_Deliverable
+ GROUP BY WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id, GD_User_Id having count(*)>1
+
+ SELECT DISTINCT * FROM #temp
+
+ Delete A from GPM_WT_Project_Team_Deliverable A Inner JOIN #temp B On A.WT_Project_ID = B.WT_Project_ID 
+ AND A.WT_Role_ID = B.WT_Role_ID AND A.Gate_Id = B.Gate_Id AND A.Deliverable_Id = B.Deliverable_Id AND A.GD_User_Id = B.GD_User_Id
+ 
+ INSERT INTO GPM_WT_Project_Team_Deliverable(WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id, GD_User_Id) SELECT WT_Project_ID, WT_Role_ID, Gate_Id, Deliverable_Id, GD_User_Id FROM #temp
+
+
+ WITH CTE AS(
+   SELECT Base_Currency_Code,Conv_Currency_Code,YearMonth,
+       RN = ROW_NUMBER()OVER(PARTITION BY Conv_Currency_Code,YearMonth ORDER BY Conv_Currency_Code,YearMonth)
+   FROM dbo.GPM_Exchange_Rate
+)
+DELETE FROM CTE WHERE RN > 1

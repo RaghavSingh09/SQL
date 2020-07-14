@@ -1,0 +1,25 @@
+--FK Column Finding
+Select B.name AS TableName, 
+CASE WHEN A.name like '%_Id%' THEN 'DECLARE @_v'+A.name+' INT' 
+	 WHEN A.name like '%_Code%' THEN 'DECLARE @_v'+A.name+' VARCHAR(10)' END
+ AS ColumnName from sys.columns A Inner Join sys.tables B on A.object_id=B.object_id 
+where (A.name like '%_Id%' or A.name like '%_Code%') AND B.name = 'GPM_WT_GDI'
+
+Select '@_v'+A.name+'=NULL,' ColumnName from sys.columns A Inner Join sys.tables B on A.object_id=B.object_id 
+WHERE B.name = 'Temp_GDI_RoleAndTags' --where (A.name like '%_Id%' or A.name like '%_Code%') AND
+
+Select '@_v'+A.name+' = [' +A.name+'],' from sys.columns A Inner Join sys.tables B on A.object_id=B.object_id 
+WHERE B.name = 'Temp_PSC_RoleAndTags'
+
+Select '@_v'+A.name+'=NULL,' ColumnName from sys.columns A Inner Join sys.tables B on A.object_id=B.object_id
+where (A.name like '%_Id%' or A.name like '%_Code%') AND B.name = 'GPM_WT_GDI'
+
+
+--Temp Table List
+--Temp_GDI_Custom_Fields
+--Temp_GDI_Gate_Deliverable
+--Temp_GDI_RoleAndTags
+--Temp_GDI_TDC
+--Temp_GDI_MissingRoleMember_Error
+--Temp_GDI_Gate_Deliverable_Error
+--Temp_GDI_Error

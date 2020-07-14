@@ -1,0 +1,122 @@
+spCodeSearch ''
+
+-----------------------------------------------------------------
+DECLARE @SEARCHSTRING VARCHAR(255), @notcontain Varchar(255)
+
+SELECT @SEARCHSTRING = 'HPESSAP', @notcontain = ''
+
+SELECT DISTINCT sysobjects.name AS [Object Name] ,
+case when sysobjects.xtype = 'P' then 'Stored Proc'
+when sysobjects.xtype = 'TF' then 'Function'
+when sysobjects.xtype = 'TR' then 'Trigger'
+when sysobjects.xtype = 'V' then 'View'
+end as [Object Type]
+FROM sysobjects,syscomments
+WHERE sysobjects.id = syscomments.id
+AND sysobjects.type in ('P')
+--AND sysobjects.type in ('P','TF','TR','V')
+AND sysobjects.category = 0
+AND CHARINDEX(@SEARCHSTRING,syscomments.text)>0
+AND ((CHARINDEX(@notcontain,syscomments.text)=0 
+or CHARINDEX(@notcontain,syscomments.text)<>0)) 
+
+------------------------------------------------------------------
+--SELECT [name] FROM msdb.dbo.sysjobs 
+
+SELECT name
+FROM   sys.procedures
+WHERE  Object_definition(object_id) LIKE '%HPESSAP0568%'
+
+------------------------------------------------------------------
+
+CREATE Procedure [dbo].[spCodeSearch]  
+  @code varchar(100),   
+  @code2 varchar(100) = NULL,   
+  @NoText bit = 1,  -- do not include code in output  
+  @ReturnJunk bit = 1  -- if true, return objects ending in toDelete, starting with bk or containing test  
+  
+AS  
+  
+/*  
+  
+Updates  
+Aug 26, 2015 D. Gilbert Added @NoText parm  
+Jan 27, 2017 D. Gilbert Added crDate to output  
+       Do not return Text  
+       Change @NoText default value to True  
+       Return unique records when @NoText is TRUE  
+*/  
+If @ReturnJunk = 0  
+ BEGIN  
+ If @NoText = 0  
+  BEGIN  
+  If @code2 IS NULL  
+   Select ooo.name, ooo.xtype, ooo.crdate, ccc.TEXT  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   and name not like '%todelete%' and name not like 'bk%' and name not like '%test%'   
+   order by ooo.name  
+  else  
+  
+   Select ooo.name, ooo.xtype, ooo.crdate, ccc.TEXT  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   AND Charindex(@code2, CAST(ccc.Text as varchar(8000))) > 0  
+   and name not like '%todelete%' and name not like 'bk%' and name not like '%test%'   
+   order by ooo.name  
+  END  
+ Else  
+  BEGIN  
+  If @code2 IS NULL  
+   Select Distinct ooo.name, ooo.xtype, ooo.crdate  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   and name not like '%todelete%' and name not like 'bk%' and name not like '%test%'   
+   order by ooo.name  
+  
+  else  
+  
+   Select Distinct ooo.name, ooo.xtype, ooo.crdate  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   AND Charindex(@code2, CAST(ccc.Text as varchar(8000))) > 0  
+   and name not like '%todelete%' and name not like 'bk%' and name not like '%test%'   
+   order by ooo.name  
+  
+  END  
+ END  
+Else  
+ BEGIN  
+ If @NoText = 0  
+  BEGIN  
+  If @code2 IS NULL  
+   Select ooo.name, ooo.xtype, ooo.crdate, ccc.TEXT  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   order by ooo.name  
+  else  
+  
+   Select ooo.name, ooo.xtype, ooo.crdate, ccc.TEXT  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   AND Charindex(@code2, CAST(ccc.Text as varchar(8000))) > 0  
+   order by ooo.name  
+  END  
+ Else  
+  BEGIN  
+  If @code2 IS NULL  
+   Select Distinct ooo.name, ooo.xtype, ooo.crdate  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   order by ooo.name  
+  else  
+  
+   Select Distinct ooo.name, ooo.xtype, ooo.crdate  
+   From sysobjects ooo inner join syscomments ccc on ooo.id = ccc.id  
+   where Charindex(@code, CAST(ccc.Text as varchar(8000))) > 0  
+   AND Charindex(@code2, CAST(ccc.Text as varchar(8000))) > 0  
+   order by ooo.name  
+  END  
+ END  
+
+-----------------------------------------------------------------------

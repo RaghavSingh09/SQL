@@ -1,0 +1,56 @@
+sp_helptext Sp_GetProjectDetails_ByProject
+
+Select B.name AS TableName, A.name AS ColumnName from sys.columns A Inner Join sys.tables B on A.object_id=B.object_id where A.name like '%Parent%' 
+
+Select 'ALTER TABLE ' + A.name+' ALTER COLUMN ' +B.name +' NVARCHAR(2000)' from sys.tables A INNER JOIN sys.columns B On A.object_id=B.object_id where A.name='Temp_DMAIC_Project_Gate_and_Del'
+
+
+--Select 'IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME ='''+name +''')'+CHAR(10)+ 'DROP Table '+ name from sys.objects where name like 'GPM_%' and type = 'U'
+
+--IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'your table name here')
+
+--Query to find FK Cloumns in a table
+SELECT C.TABLE_NAME [PKTABLE_NAME], C.CONSTRAINT_NAME [FK_NAME],KCU.COLUMN_NAME
+		FROM   INFORMATION_SCHEMA.TABLE_CONSTRAINTS C 
+       INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU 
+         ON C.CONSTRAINT_SCHEMA = KCU.CONSTRAINT_SCHEMA 
+            AND C.CONSTRAINT_NAME = KCU.CONSTRAINT_NAME 
+       INNER JOIN INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS RC 
+         ON C.CONSTRAINT_SCHEMA = RC.CONSTRAINT_SCHEMA 
+            AND C.CONSTRAINT_NAME = RC.CONSTRAINT_NAME 
+       INNER JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS C2 
+         ON RC.UNIQUE_CONSTRAINT_SCHEMA = C2.CONSTRAINT_SCHEMA 
+            AND RC.UNIQUE_CONSTRAINT_NAME = C2.CONSTRAINT_NAME 
+       INNER JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE KCU2 
+         ON C2.CONSTRAINT_SCHEMA = KCU2.CONSTRAINT_SCHEMA 
+            AND C2.CONSTRAINT_NAME = KCU2.CONSTRAINT_NAME 
+            AND KCU.ORDINAL_POSITION = KCU2.ORDINAL_POSITION 
+	   WHERE  C.CONSTRAINT_TYPE = 'FOREIGN KEY' AND C.TABLE_NAME='GPM_WT_MDPO'
+
+--Query to find data type of a column 
+SELECT 
+    c.name 'Column Name',
+    t.Name 'Data type',
+    c.max_length 'Max Length',
+    c.precision ,
+    c.scale ,
+    c.is_nullable,
+    ISNULL(i.is_primary_key, 0) 'Primary Key'
+FROM    
+    sys.columns c
+INNER JOIN 
+    sys.types t ON c.user_type_id = t.user_type_id
+LEFT OUTER JOIN 
+    sys.index_columns ic ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+LEFT OUTER JOIN 
+    sys.indexes i ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+WHERE
+    c.object_id = OBJECT_ID('YourTableName')
+
+--Test User List Query for UAT
+Select Distinct A.GD_User_Id,B.User_First_Name+' '+B.User_Last_Name,C.AD_Group_Desc from GPM_AD_Group_User_Map A
+INNER JOIN GPM_AD_Group C On A.AD_Group_Id = C.AD_Group_Id
+LEFT OUTER JOIN GPM_User B On A.GD_User_Id=B.GD_User_Id
+where A.GD_User_Id 
+IN('AC03649','AC10974','AA06488','AA92222','NSAE022','NSAF712','AA18126','AA44045','NEIA350','AA78422','A387541','AC06700','NENC323','NEN9840','AC18673','A212168','A393384','NENA092','NEIC073','AA07340','A363656','NEN8007','AC08717','A170862','AC01206','A348602','A348602','AA12791','AA01825','AA91185','AC01956','A283367','NENC138','AA05745','T900978','NSAE404','NEN7997','A120684','AC03754','T456BW4','AA21384','AC01956','AC07628','AA82607','AA93719','T001264','AC10974')
+AND (A.AD_Group_Id=11) --OR A.AD_Group_Id=13)

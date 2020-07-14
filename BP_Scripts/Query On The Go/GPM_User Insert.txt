@@ -1,0 +1,52 @@
+INSERT INTO GPM_User(GD_User_Id,User_First_Name,User_Last_Name,Primary_Email,Region_Code,Country_Code,Location_Id,BA_Id,Dept_Id,Currency_Code,Is_Deleted_Ind)
+SELECT A.Username,A.First_Name,A.Last_Name,A.Email,CAST(R.Region_Code AS VARCHAR(5)) AS Region_Code, CAST(C.Country_Code AS CHAR(3)) AS Country_Code, CAST(L.Location_Id AS INT) AS Location_Id,
+       CAST(B.BA_Id AS INT) AS BA_Id, CAST(D.Dept_Id AS INT) AS Dept_Id, CAST(C.Currency_Code AS CHAR(3)) AS Currency_Code, 'N' AS Is_Deleted_Ind
+FROM Temp_GPM_Users A 
+LEFT OUTER JOIN GPM_Region R on LTRIM(RTRIM(A.Regions)) = LTRIM(RTRIM(R.Region_Code))
+LEFT OUTER JOIN GPM_Country C on LTRIM(RTRIM(A.Country)) = LTRIM(RTRIM(C.Country_Name)) 
+LEFT OUTER JOIN GPM_Location L on LTRIM(RTRIM(A.Location)) = LTRIM(RTRIM(L.Location_Name))
+LEFT OUTER JOIN GPM_Business_Area B on LTRIM(RTRIM(A.[Business_Area])) = LTRIM(RTRIM(B.BA_Name))
+LEFT OUTER JOIN GPM_Department D on LTRIM(RTRIM(A.Departments)) = LTRIM(RTRIM(D.Dept_Name)) and D.BA_Id = B.BA_Id
+WHERE NOT EXISTS(SELECT GU.GD_User_Id FROM GPM_User GU WHERE A.Username=GU.GD_User_Id) AND LEN(A.Username)<=10
+
+
+SELECT Username FROM Temp_GPM_Users WHERE LEN(Username)>10
+
+----------------------------------------------------------------------------------------------------------
+Select * from Temp_Excel_User --AC00292
+Select * from Temp_User order by GD_User_ID
+
+Insert into Temp_User (GD_User_Id,User_First_Name,User_Last_Name,Desk_Phone,Mobile,Fax,Pager,Primary_Email,Region_Code,Country_Code,Location_Id,BA_Id,Dept_Id,Currency_Code,Is_Deleted_Ind)
+Select T.User_Id, T.User_First_Name, T.User_Last_Name, T.Desk_Phone, T.Mobile, T.Fax, T.Pager, 
+	   T.Email, cast(R.Region_Code as varchar(5)), cast(C.Country_Code as char(3)), cast(L.Location_Id as int), cast(B.BA_Id as int), cast(D.Dept_Id as int), cast(C.Currency_Code as char(4)), 'N'
+
+from Temp_Excel_User T
+left outer join GPM_Region R on ltrim(rtrim(T.Regions)) = ltrim(rtrim(R.Region_Code))
+left outer join GPM_Country C on ltrim(rtrim(T.Country)) = ltrim(rtrim(C.Country_Name))
+left outer join GPM_Location L on ltrim(rtrim(T.Location)) = ltrim(rtrim(L.Location_Name))
+left outer join GPM_Business_Area B on ltrim(rtrim(T.[Business Area])) = ltrim(rtrim(B.BA_Name))
+left outer join GPM_Department D on ltrim(rtrim(T.Departments)) = ltrim(rtrim(D.Dept_Name)) and D.BA_Id = B.BA_Id
+
+
+Insert into GPM_User Select * from Temp_User
+
+
+Select * from sys.objects where object_id = '629577281' --name like 'GPM%'
+--Select * from sys.key_constraints where name like '%GPM%'
+Select * from sys.all_columns where name like '%Currency_Code%'
+
+
+----------------------------------------------------------------------------------------------------
+
+Select T.User_Id, T.User_First_Name, T.User_Last_Name, T.Desk_Phone, T.Mobile, T.Fax, T.Pager, 
+       T.Email, cast(R.Region_Code as varchar(5)) as Region_Code, cast(C.Country_Code as char(3)) as Country_Code, cast(L.Location_Id as int) as Location_Id,
+       cast(B.BA_Id as int) as BA_Id, cast(D.Dept_Id as int) as Dept_Id, cast(C.Currency_Code as char(4)) as Currency_Code, 'N' as Is_Deleted_Ind
+
+from Temp_Excel_User T
+left outer join GPM_Region R on ltrim(rtrim(T.Regions)) = ltrim(rtrim(R.Region_Code))
+left outer join GPM_Country C on ltrim(rtrim(T.Country)) = ltrim(rtrim(C.Country_Name))
+left outer join GPM_Location L on ltrim(rtrim(T.Location)) = ltrim(rtrim(L.Location_Name))
+left outer join GPM_Business_Area B on ltrim(rtrim(T.[Business Area])) = ltrim(rtrim(B.BA_Name))
+left outer join GPM_Department D on ltrim(rtrim(T.Departments)) = ltrim(rtrim(D.Dept_Name)) and D.BA_Id = B.BA_Id
+
+

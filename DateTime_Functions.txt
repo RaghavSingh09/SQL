@@ -1,0 +1,170 @@
+USE [App_Support]
+GO
+/****** Object:  UserDefinedFunction [dbo].[ufnGetDifferentDateFormats]    Script Date: 25/02/2021 1:45:19 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+ALTER FUNCTION [dbo].[ufnGetDifferentDateFormats](@PassDate date,@PassDateFormat varchar(100))
+RETURNS VARCHAR(100)
+AS
+BEGIN
+     DECLARE @RetrunDate VARCHAR(100)
+	 DECLARE @RetrunDateFromat VARCHAR(100)
+     SET @RetrunDateFromat = (SELECT   CASE     
+									   --formats for DayMonthYear
+									   WHEN CHARINDEX('ddmmyyyy',@PassDateFormat) > 0 THEN 'ddmmyyyy'
+									   WHEN CHARINDEX('ddmonyyyy',@PassDateFormat) > 0 THEN 'ddmonyyyy'
+									   WHEN CHARINDEX('dd.mm.yyyy',@PassDateFormat) > 0 THEN 'dd.mm.yyyy'
+									   WHEN CHARINDEX('dd.mon.yyyy',@PassDateFormat) > 0 THEN 'dd.mon.yyyy'
+									   WHEN CHARINDEX('dd-mm-yyyy',@PassDateFormat) > 0 THEN 'dd-mm-yyyy'
+									   WHEN CHARINDEX('dd-mon-yyyy',@PassDateFormat) > 0 THEN 'dd-mon-yyyy'
+									   WHEN CHARINDEX('dd_mm_yyyy',@PassDateFormat) > 0 THEN 'dd_mm_yyyy'
+									   WHEN CHARINDEX('dd_mon_yyyy',@PassDateFormat) > 0 THEN 'dd_mon_yyyy'
+									   WHEN CHARINDEX('ddmmyy',@PassDateFormat) > 0 THEN 'ddmmyy'
+									   WHEN CHARINDEX('ddmonyy',@PassDateFormat) > 0 THEN 'ddmonyy'
+									   WHEN CHARINDEX('dd.mm.yy',@PassDateFormat) > 0 THEN 'dd.mm.yy'
+									   WHEN CHARINDEX('dd.mon.yy',@PassDateFormat) > 0 THEN 'dd.mon.yy'
+									   WHEN CHARINDEX('dd-mm-yy',@PassDateFormat) > 0 THEN 'dd-mm-yy'
+									   WHEN CHARINDEX('dd-mon-yy',@PassDateFormat) > 0 THEN 'dd-mon-yy'
+									   WHEN CHARINDEX('dd_mm_yy',@PassDateFormat) > 0 THEN 'dd_mm_yy'
+									   WHEN CHARINDEX('dd_mon_yy',@PassDateFormat) > 0 THEN 'dd_mon_yy'
+										 --formats for MonthDayYear
+									   WHEN CHARINDEX('mmddyyyy',@PassDateFormat) > 0 THEN 'mmddyyyy'
+									   WHEN CHARINDEX('monddyyyy',@PassDateFormat) > 0 THEN 'monddyyyy'
+									   WHEN CHARINDEX('mm.dd.yyyy',@PassDateFormat) > 0 THEN 'mm.dd.yyyy'
+									   WHEN CHARINDEX('mon.dd.yyyy',@PassDateFormat) > 0 THEN 'mon.dd.yyyy'
+									   WHEN CHARINDEX('mm-dd-yyyy',@PassDateFormat) > 0 THEN 'mm-dd-yyyy'
+									   WHEN CHARINDEX('mon-dd-yyyy',@PassDateFormat) > 0 THEN 'mon-dd-yyyy'
+									   WHEN CHARINDEX('mm_dd_yyyy',@PassDateFormat) > 0 THEN 'mm_dd_yyyy'
+									   WHEN CHARINDEX('mon_dd_yyyy',@PassDateFormat) > 0 THEN 'mon_dd_yyyy'
+									   WHEN CHARINDEX('mmddyy',@PassDateFormat) > 0 THEN 'mmddyy'
+									   WHEN CHARINDEX('monddyy',@PassDateFormat) > 0 THEN 'monddyy'
+									   WHEN CHARINDEX('mm.dd.yy',@PassDateFormat) > 0 THEN 'mm.dd.yy'
+									   WHEN CHARINDEX('mon.dd.yy',@PassDateFormat) > 0 THEN 'mon.dd.yy'
+									   WHEN CHARINDEX('mm-dd-yy',@PassDateFormat) > 0 THEN 'mm-dd-yy'
+									   WHEN CHARINDEX('mon-dd-yy',@PassDateFormat) > 0 THEN 'mon-dd-yy'
+									   WHEN CHARINDEX('mm_dd_yy',@PassDateFormat) > 0 THEN 'mm_dd_yy'
+									   WHEN CHARINDEX('mon_dd_yy',@PassDateFormat) > 0 THEN 'mon_dd_yy'
+										  --formats for YearMonthDay
+									   WHEN CHARINDEX('yyyymmdd',@PassDateFormat) > 0 THEN 'yyyymmdd'
+									   WHEN CHARINDEX('yyyymondd',@PassDateFormat) > 0 THEN 'yyyymondd'
+									   WHEN CHARINDEX('yyyy.mm.dd',@PassDateFormat) > 0 THEN 'yyyy.mm.dd'
+									   WHEN CHARINDEX('yyyy.mon.dd',@PassDateFormat) > 0 THEN 'yyyy.mon.dd'
+									   WHEN CHARINDEX('yyyy-mm-dd',@PassDateFormat) > 0 THEN 'yyyy-mm-dd'
+									   WHEN CHARINDEX('yyyy-mon-dd',@PassDateFormat) > 0 THEN 'yyyy-mon-dd'
+									   WHEN CHARINDEX('yyyy_mm_dd',@PassDateFormat) > 0 THEN 'yyyy_mm_dd'
+									   WHEN CHARINDEX('yyyy_mon_dd',@PassDateFormat) > 0 THEN 'yyyy_mon_dd'
+									   WHEN CHARINDEX('yymmdd',@PassDateFormat) > 0 THEN 'yymmdd'
+									   WHEN CHARINDEX('yymondd',@PassDateFormat) > 0 THEN 'yymondd'
+									   WHEN CHARINDEX('yy.mm.dd',@PassDateFormat) > 0 THEN 'yy.mm.dd'
+									   WHEN CHARINDEX('yy.mon.dd',@PassDateFormat) > 0 THEN 'yy.mon.dd'
+									   WHEN CHARINDEX('yy-mm-dd',@PassDateFormat) > 0 THEN 'yy-mm-dd'
+									   WHEN CHARINDEX('yy-mon-dd',@PassDateFormat) > 0 THEN 'yy-mon-dd'
+									   WHEN CHARINDEX('yy_mm_dd',@PassDateFormat) > 0 THEN 'yy_mm_dd'
+									   WHEN CHARINDEX('yy_mon_dd',@PassDateFormat) > 0 THEN 'yy_mon_dd'
+											 --formats for YearDayMonth
+									   WHEN CHARINDEX('yyyyddmm',@PassDateFormat) > 0 THEN 'yyyyddmm'
+									   WHEN CHARINDEX('yyyyddmon',@PassDateFormat) > 0 THEN 'yyyyddmon'
+									   WHEN CHARINDEX('yyyy.dd.mm',@PassDateFormat) > 0 THEN 'yyyy.dd.mm'
+									   WHEN CHARINDEX('yyyy.dd.mon',@PassDateFormat) > 0 THEN 'yyyy.dd.mon'
+									   WHEN CHARINDEX('yyyy-dd-mm',@PassDateFormat) > 0 THEN 'yyyy-dd-mm'
+									   WHEN CHARINDEX('yyyy-dd-mon',@PassDateFormat) > 0 THEN 'yyyy-dd-mon'
+									   WHEN CHARINDEX('yyyy_dd_mm',@PassDateFormat) > 0 THEN 'yyyy_dd_mm'
+									   WHEN CHARINDEX('yyyy_dd_mon',@PassDateFormat) > 0 THEN 'yyyy_dd_mon'
+									   WHEN CHARINDEX('yyddmm',@PassDateFormat) > 0 THEN 'yyddmm'
+									   WHEN CHARINDEX('yyddmon',@PassDateFormat) > 0 THEN 'yyddmon'
+									   WHEN CHARINDEX('yy.dd.mm',@PassDateFormat) > 0 THEN 'yy.dd.mm'
+									   WHEN CHARINDEX('yy.dd.mon',@PassDateFormat) > 0 THEN 'yy.dd.mon'
+									   WHEN CHARINDEX('yy-dd-mm',@PassDateFormat) > 0 THEN 'yy-dd-mm'
+									   WHEN CHARINDEX('yy-dd-mon',@PassDateFormat) > 0 THEN 'yy-dd-mon'
+									   WHEN CHARINDEX('yy_dd_mm',@PassDateFormat) > 0 THEN 'yy_dd_mm'
+									   WHEN CHARINDEX('yy_dd_mon',@PassDateFormat) > 0 THEN 'yy_dd_mon'
+							END as RetrunDate
+							)
+	  SET @RetrunDate = format(@PassDate, REPLACE(REPLACE(@RetrunDateFromat, 'mm','MM'), 'mon', 'MMM'))
+	 RETURN @RetrunDate
+END;
+
+--------------------
+
+ALTER FUNCTION [dbo].[ufnGetDifferentTimeFormats](@PassDate datetime = NULL,@PassTimeStampFormat varchar(100))
+RETURNS VARCHAR(100)
+AS
+BEGIN
+	IF @PassDate IS NULL
+	BEGIN
+		SET @PassDate = (SELECT getdate())
+	END
+	DECLARE @RetrunSysTimeStampFormat VARCHAR(100)
+	SET @RetrunSysTimeStampFormat = (select FORMAT(@PassDate, @PassTimeStampFormat))	
+	RETURN @RetrunSysTimeStampFormat
+END;
+
+--------------------
+
+ALTER FUNCTION [dbo].[ufn_GetDateFromDMMYY]
+(
+--	@SourceDate	VARCHAR(6)
+    @SourceDateInt INT = NULL
+)
+RETURNS DATE
+AS
+BEGIN
+    IF (COALESCE(@SourceDateInt,0) = 0) 
+        RETURN NULL;
+
+    IF (Len(@SourceDateInt) < 5 )
+        RETURN NULL;
+
+    RETURN CONVERT(DATE, SUBSTRING(RIGHT('0'+CONVERT(VARCHAR(6),@SourceDateInt),6), 1,2) + '/' + SUBSTRING(RIGHT('0'+CONVERT(VARCHAR(6),@SourceDateInt),6), 3,2) + '/' + SUBSTRING(RIGHT('0'+CONVERT(VARCHAR(6),@SourceDateInt),6), 5,2), 3)
+END
+
+---------------------
+
+ALTER FUNCTION [dbo].[ufn_GetDateFromJulian] (@piJulianInt int) 
+RETURNS date
+
+BEGIN
+    
+	DECLARE @sjulian varchar(7)
+    
+	SET @sjulian = CONVERT(varchar(7), @piJulianInt);
+    
+	IF  @sjulian = '0' OR LEN(@sjulian) < 7 
+		RETURN NULL;
+	
+	RETURN DATEADD(day, CAST(RIGHT(@sjulian,3) AS int) - 1, CONVERT(date, LEFT(@sjulian,4) + '0101', 112));
+
+END
+
+--------------------
+ALTER FUNCTION [dbo].[ufnGetNextWorkingDay](@givenDate DATE) 
+RETURNS DATE
+AS 
+BEGIN 
+ DECLARE @workingDate DATE
+ SET @workingDate=CONVERT(DATE, DATEADD(dd, 1, @givenDate));
+-- SET @workingDate=@givenDate;
+
+     --- Increment the value by one day if this
+    --- is a bank holiday or weekend:
+    WHILE (EXISTS (SELECT 1
+                   FROM dbo.refPublicHoliday h
+                   WHERE h.HolidayDate=@workingDate
+                   AND      h.Location IN ('National','Brisbane') -- ignore Perth
+                   union
+                   select 1 where DATENAME(dw , @workingDate) = 'Saturday'
+                   union 
+                   select 1 where DATENAME(dw , @workingDate) = 'Sunday'
+                   ))
+        SET @workingDate=CONVERT(DATE, DATEADD(dd, 1, @workingDate));
+
+    --- Done:
+ RETURN @workingDate 
+END
+
+

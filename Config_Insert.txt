@@ -1,0 +1,43 @@
+USE [UTIL]
+GO
+
+INSERT INTO [util].[ExportToFile_Config]
+           ([BatchId]
+           ,[JobId]
+           ,[DBName]
+           ,[SPorSQL]
+           ,[SourceDateVariation]
+           ,[SourceSPName]
+           ,[SourceSQLStatement]
+           ,[TargetDatabase]
+           ,[TargetTableName]
+           ,[DestDateVariation]
+           ,[DestFilePath]
+           ,[DestFilePattern]
+           ,[TextQualifier]
+           ,[DestFileDelimiter]
+           ,[IncludeHeader]
+           ,[HeaderTextStyle]
+           ,[DestFileExtension])
+     VALUES
+           (999
+           ,7009
+           ,'EDDH'
+           ,'SQL'
+           ,'T'
+           ,NULL
+           ,'SELECT '
+           ,'EDDH'
+           ,'Export.Test'
+           ,'T'
+           ,'\\BQLPMSPLSSIS02\EbiFileTransfer\BusinessOutbound\BOQS\CLOE\'
+           ,'Test_Extract_<sysdateYYYYMMDD>'
+           ,''
+           ,','
+           ,'Yes'
+           ,NULL
+           ,'.txt'
+		   )
+GO
+
+

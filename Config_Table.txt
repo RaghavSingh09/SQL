@@ -1,0 +1,44 @@
+USE [UTIL]
+GO
+
+/****** Object:  Table [util].[ExportToFile_Config]    Script Date: 25/02/2021 1:51:01 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+SET ANSI_PADDING ON
+GO
+
+CREATE TABLE [util].[ExportToFile_Config](
+	[BatchId] [int] NOT NULL,
+	[JobId] [int] NOT NULL,
+	[DBName] [varchar](8000) NULL,
+	[SPorSQL] [varchar](3) NULL,
+	[SourceDateVariation] [varchar](50) NULL,
+	[SourceSPName] [varchar](8000) NULL,
+	[SourceSQLStatement] [nvarchar](max) NULL,
+	[TargetDatabase] [varchar](50) NULL,
+	[TargetTableName] [varchar](50) NULL,
+	[DestDateVariation] [varchar](50) NULL,
+	[DestFilePath] [varchar](8000) NULL,
+	[DestFilePattern] [varchar](8000) NULL,
+	[TextQualifier] [varchar](1) NULL,
+	[DestFileDelimiter] [varchar](1) NULL,
+	[IncludeHeader] [varchar](3) NULL,
+	[HeaderTextStyle] [varchar](10) NULL,
+	[DestFileExtension] [varchar](8000) NULL,
+ CONSTRAINT [PK_ExportToFile_Config] PRIMARY KEY CLUSTERED 
+(
+	[BatchId] ASC,
+	[JobId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+GO
+
+SET ANSI_PADDING OFF
+GO
+
+

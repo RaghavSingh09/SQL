@@ -1,0 +1,304 @@
+USE [App_Support]
+GO
+/****** Object:  StoredProcedure [dbo].[usp_ExportToFile_BCP]    Script Date: 25/02/2021 1:39:41 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[usp_ExportToFile_BCP]
+(			
+@JobLogId				as bigint
+,@JobId					as int				
+,@BatchId				as int
+)
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+DECLARE @DBName				    as varchar(8000)	
+DECLARE @SourceDateVariation	as varchar(50)	
+DECLARE @SourceSPName			as varchar(8000)
+DECLARE @SourceSQLStatement	    as nvarchar(MAX)	
+DECLARE @TargetDatabase		    as varchar(50)		
+DECLARE @TargetTableName		as varchar(50)	
+DECLARE @DestDateVariation		as varchar(50)	
+DECLARE @DestFilePath			as varchar(8000)
+DECLARE @DestFilePattern		as varchar(8000)
+DECLARE @DestFileDelimiter		as varchar(100)	
+DECLARE @IncludeHeader			as varchar(3)	
+DECLARE @DestFileExtension		as varchar(8000)
+DECLARE @Server_Name			as VARCHAR(8000)
+DECLARE @TQ						as VARCHAR(10)
+
+
+	DECLARE @TargetProcessingDate				as date
+	
+	DECLARE @SourceDatePatternWithBrackets		as NVARCHAR(100)
+	DECLARE @CalculatedSourceDatePattern		as NVARCHAR(100)
+	
+	DECLARE @DestDatePatternWithBrackets		as NVARCHAR(100)
+	DECLARE @CalculatedDestDatePattern			as NVARCHAR(100)
+
+	DECLARE @DestTimePatternWithBrackets		as NVARCHAR(100)
+	DECLARE @CalculatedDestTimePattern			as NVARCHAR(100)
+	DECLARE @CalculatedVariationAddOrSubtract	as bigint
+
+	DECLARE @SourceFileDate						as VARCHAR(100)
+	DECLARE @DestFileDate						as VARCHAR(100)
+
+	SELECT @Server_Name = @@SERVERNAME
+
+	--Code to get parameter values from util.ExportToFile_Config--
+	SELECT	 
+			 @DBName				=	[DBName]
+			,@SourceDateVariation	=	[SourceDateVariation]
+			,@SourceSPName			=	[SourceSPName]
+			,@SourceSQLStatement	=	[SourceSQLStatement]
+			,@TargetDatabase		=	[TargetDatabase]
+			,@TargetTableName		=	[TargetTableName]
+			,@DestDateVariation		=	[DestDateVariation]
+			,@DestFilePath			=	[DestFilePath]
+			,@DestFilePattern		=	[DestFilePattern]
+			,@DestFileDelimiter		=	[DestFileDelimiter]
+			,@IncludeHeader			=	[IncludeHeader]
+			,@DestFileExtension		=	[DestFileExtension]
+			,@TQ					=	ISNULL([TextQualifier],'')
+
+	FROM	ETLFRAMEWORK_SERVER.[UTIL].[util].[ExportToFile_Config]
+	WHERE	jobid = @JobId
+
+
+	--Code to get TargetProcessingDate--
+	SELECT   @TargetProcessingDate			=	batchparametervalue FROM ETLFRAMEWORK_SERVER.EtlFramework.dbo.batchconfig WHERE batchid = @BatchId and BatchParameterName = 'TargetProcessingDate'
+
+	
+	IF(LEN(@TargetProcessingDate)>0 OR @TargetProcessingDate IS NOT NULL)
+		SET @SourceSQLStatement = REPLACE(@SourceSQLStatement,'<bcdateYYYY-MM-DD>',''''+CAST(@TargetProcessingDate AS VARCHAR(10))+'''')
+	
+	/*BCP Section Starts*/
+	DECLARE @s	AS VARCHAR(8000), @TargetSchema AS VARCHAR(50), @_vIsDataSQL NVARCHAR(MAX)='', @_vIsData INT
+	
+	SET @Server_Name = @@SERVERNAME
+	
+	IF(@TargetTableName IS NOT NULL OR LEN(@TargetTableName)>0)
+	BEGIN
+		SELECT @TargetSchema = LTRIM(RTRIM(LEFT(@TargetTableName,CHARINDEX('.',@TargetTableName)-1)))
+		SELECT @TargetTableName = SUBSTRING(@TargetTableName,CHARINDEX('.',@TargetTableName)+1,LEN(@TargetTableName))
+		
+		--Check Schema
+		SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM '+@TargetDatabase+'.SYS.SCHEMAS S INNER JOIN '+@TargetDatabase+'.SYS.SYSUSERS U ON U.UID = S.PRINCIPAL_ID WHERE S.NAME = '''+@TargetSchema+''''
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+		IF(@_vIsData<=0)
+		BEGIN
+			SET @_vIsDataSQL = 'EXEC '+ QUOTENAME(@TargetDatabase) + '..SP_EXECUTESQL N''CREATE SCHEMA '+@TargetSchema+''''
+			EXECUTE(@_vIsDataSQL)
+		END
+
+		--Check Table
+		SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM '+@TargetDatabase+'.SYS.TABLES WHERE NAME = '''+@TargetTableName+''''
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+		IF(@_vIsData>0)
+		BEGIN
+			SET @_vIsDataSQL = 'EXEC '+ QUOTENAME(@TargetDatabase) + '..SP_EXECUTESQL N''DROP TABLE ['+@TargetSchema+'].['+@TargetTableName+']'''
+			EXECUTE(@_vIsDataSQL)
+		END
+
+		BEGIN
+			SET @_vIsDataSQL = 'EXEC '+ QUOTENAME(@TargetDatabase) + '..SP_EXECUTESQL N'''+REPLACE(REPLACE(@SourceSQLStatement,'--ExportToFileSelect',' INTO ['+@TargetSchema+'].['+@TargetTableName+'] '+CHAR(10)),'''','''''')+CHAR(10)+''''
+			EXECUTE(@_vIsDataSQL)
+		END
+		
+	END
+
+	DECLARE @TempColumnList NVARCHAR(MAX),@ColumnList NVARCHAR(MAX),@columnHeader NVARCHAR(MAX), @TempColumnList_1 VARCHAR(MAX),  @TempColumnList_2 VARCHAR(MAX)
+	DECLARE @MainTable VARCHAR(100)=@TargetDatabase+'.'+@TargetSchema+'.'+@TargetTableName
+	DECLARE @TempTable VARCHAR(100)='##'+@TargetTableName+'_Temp', @TempTable_1 VARCHAR(100)='##'+@TargetTableName+'_Temp_1', @_vRowCount BIGINT
+	
+	--To Get Extracted Row Count
+	SET @_vIsDataSQL = 'SELECT @_vRowCount = COUNT(1) FROM '+@MainTable
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vRowCount BIGINT OUTPUT', @_vRowCount OUTPUT
+		
+	UPDATE ETLFRAMEWORK_SERVER.EtlFramework.dbo.JobLog 
+	SET	   ExtractRowCount = @_vRowCount 
+	WHERE  JobLogId = @JobLogId
+		
+
+	--Check If Temp and Temp_1 Tables Exists and Drop Them If Found
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable_1+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable_1+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	IF(UPPER(@IncludeHeader)='YES' AND LEN(ISNULL(@TQ,''))>0)
+	BEGIN
+		--To Create the Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @TempColumnList =  COALESCE(@TempColumnList+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList NVARCHAR(MAX) OUTPUT', @TempColumnList OUTPUT
+		
+		EXEC('CREATE TABLE '+@TempTable+' ( '+@TempColumnList+' )')
+	
+		--To Insert The Data Into The Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @columnHeader = COALESCE(@columnHeader+'','' ,'''')+ '''''''+@TQ+'''''+''+QuoteName(column_name,CHAR(39))+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@columnHeader VARCHAR(MAX) OUTPUT', @columnHeader OUTPUT
+	
+		SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ '''''''+@TQ+'''''+''+''CAST([''+column_name+''] AS VARCHAR(MAX))''+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@ColumnList VARCHAR(MAX) OUTPUT', @ColumnList OUTPUT
+
+		EXEC('INSERT INTO '+ @TempTable + ' SELECT '+ @columnHeader)
+
+		--To Create Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		SET @_vIsDataSQL = 'SELECT @TempColumnList_1 =  COALESCE(@TempColumnList_1+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList_1 VARCHAR(MAX) OUTPUT', @TempColumnList_1 OUTPUT
+		EXEC('CREATE TABLE '+@TempTable_1+' ( '+@TempColumnList_1+' )')
+
+		--To Insert Data Into Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		SET @_vIsDataSQL = 'SELECT @TempColumnList_2 =  COALESCE(@TempColumnList_2+'','' ,'''')+ '''''''+@TQ+'''''+''+''ISNULL(CAST([''+column_name +''] AS VARCHAR(MAX)),'''''''') ''+''+'''''+@TQ+''''' AS [''+column_name+'']''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList_2 NVARCHAR(MAX) OUTPUT', @TempColumnList_2 OUTPUT
+
+		EXEC('INSERT INTO '+@TempTable_1+' SELECT '+@TempColumnList_2+' FROM '+@MainTable)
+
+	END
+	ELSE IF(UPPER(@IncludeHeader) = 'YES' AND LEN(ISNULL(@TQ,''))<=0)
+	BEGIN
+		--To Create the Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @TempColumnList =  COALESCE(@TempColumnList+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList NVARCHAR(MAX) OUTPUT', @TempColumnList OUTPUT
+		
+		EXEC('CREATE TABLE '+@TempTable+' ( '+@TempColumnList+' )')
+		EXEC('CREATE TABLE '+@TempTable_1+' ( '+@TempColumnList+' )')
+	
+		--To Insert The Data Into The Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @columnHeader = COALESCE(@columnHeader+'','' ,'''')+ '''''''+@TQ+'''''+''+QuoteName(column_name,CHAR(39))+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@columnHeader VARCHAR(MAX) OUTPUT', @columnHeader OUTPUT
+
+		SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ ''ISNULL(CAST([''+column_name +''] AS VARCHAR(MAX)),'''''''') AS [''+column_name+'']''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@ColumnList VARCHAR(MAX) OUTPUT', @ColumnList OUTPUT
+	
+		EXEC('INSERT INTO '+@TempTable +' SELECT '+ @columnHeader)
+		EXEC('INSERT INTO '+@TempTable_1+' SELECT '+@ColumnList+ ' FROM '+@MainTable)
+	END
+	ELSE IF(UPPER(@IncludeHeader) = 'NO' AND LEN(ISNULL(@TQ,''))>0)
+	BEGIN
+		--To Create Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		SET @_vIsDataSQL = 'SELECT @TempColumnList_1 =  COALESCE(@TempColumnList_1+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList_1 VARCHAR(MAX) OUTPUT', @TempColumnList_1 OUTPUT
+		EXEC('CREATE TABLE '+@TempTable_1+' ( '+@TempColumnList_1+' )')
+
+		--To Insert Data Into Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		--SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ '''''''+@TQ+'''''+''+''CAST(''+column_name+'' AS VARCHAR(MAX))''+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ '''''''+@TQ+'''''+''+''ISNULL(CAST([''+column_name+''] AS VARCHAR(MAX)),'''''''')''+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@ColumnList VARCHAR(MAX) OUTPUT', @ColumnList OUTPUT
+		
+		Exec('INSERT INTO '+@TempTable_1+' SELECT '+@ColumnList+' FROM '+@MainTable)
+	END
+	
+	--Code to perform calculations on all destination parameters--
+
+	SELECT @DestFileDate					=	CASE	WHEN	CHARINDEX('<sysdate', @DestFilePattern, 1) > 1		THEN FORMAT(getdate(), 'yyyyMMdd')
+												WHEN	CHARINDEX('<bcdate', @DestFilePattern, 1) > 1		THEN FORMAT(@TargetProcessingDate, 'yyyyMMdd')
+												ELSE	''
+										END
+	,@DestDatePatternWithBrackets	=	SUBSTRING(@DestFilePattern,CHARINDEX('<', @DestFilePattern, 1),CHARINDEX('>', @DestFilePattern, 1) - CHARINDEX('<', @DestFilePattern, 1) +1)
+	,@DestTimePatternWithBrackets	=	SUBSTRING(@DestFilePattern,charindex('<', @DestFilePattern, (charindex('<', @DestFilePattern, 1))+1),charindex('>', @DestFilePattern, (charindex('>', @DestFilePattern, 1))+1) - charindex('<', @DestFilePattern, (charindex('<', @DestFilePattern, 1))+1) +1)
+	
+	--Code to set DestFiledate based on dest date variation--
+	IF LEN(@DestDateVariation) = 1
+	BEGIN
+	  SET @DestFileDate= @DestFileDate
+	END
+	ELSE IF LEN(@DestDateVariation) > 1 AND CHARINDEX('-', @DestDateVariation,1) > 1 
+	BEGIN
+	  SELECT @CalculatedVariationAddOrSubtract = SUBSTRING(@DestDateVariation, CHARINDEX('-', @DestDateVariation,1), (LEN(@DestDateVariation) - CHARINDEX('-', @DestDateVariation,1)) + 1)
+	  SET @DestFileDate= (SELECT DATEADD(DD,@CalculatedVariationAddOrSubtract,@DestFileDate))
+	END
+	ELSE IF LEN(@DestDateVariation) > 1 AND CHARINDEX('+', @DestDateVariation,1) > 1 
+	BEGIN
+	  SELECT @CalculatedVariationAddOrSubtract = SUBSTRING(@DestDateVariation, CHARINDEX('+', @DestDateVariation,1), (LEN(@DestDateVariation) - CHARINDEX('+', @DestDateVariation,1)) + 1)
+	  SET @DestFileDate = (SELECT DATEADD(DD,@CalculatedVariationAddOrSubtract,@DestFileDate))
+	END
+
+	
+	--Code to caluclate source, dest date and time format--
+	SELECT   @CalculatedDestDatePattern		=	(SELECT [dbo].[ufnGetDifferentDateFormats] (@DestFileDate, REPLACE(REPLACE(REPLACE(REPLACE(@DestDatePatternWithBrackets, '<sysdate', ''), '>', ''), '<bcdate', ''), '>', '')))
+			,@CalculatedDestTimePattern		=	CASE @DestTimePatternWithBrackets WHEN '' THEN ''
+												ELSE (SELECT [dbo].[ufnGetDifferentTimeFormats] (NULL, (SELECT REPLACE(REPLACE(@DestTimePatternWithBrackets, '<timestamp', ''), '>', ''))))
+												END
+
+	--Code to set output parameters--
+	SELECT	@DestFilePattern				=	(SELECT REPLACE(REPLACE(@DestFilePattern, @DestDatePatternWithBrackets, @CalculatedDestDatePattern),@DestTimePatternWithBrackets,@CalculatedDestTimePattern))
+
+	---BCP Export Results of Temp Table to Expected File--
+	
+	IF UPPER(@DestFileExtension) LIKE '%XML%'
+	BEGIN
+		set @s =  'bcp "SELECT * FROM '+@MainTable+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -w -S ' + @Server_Name
+		EXEC xp_cmdshell @s
+	END
+	ELSE
+	BEGIN
+		IF(UPPER(@IncludeHeader) = 'YES' AND LEN(ISNULL(@TQ,''))>0)
+		BEGIN
+			--set @s =  'bcp "SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			set @s =  'bcp "SELECT * FROM '+@TempTable+' UNION ALL SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+		ELSE IF(UPPER(@IncludeHeader) = 'YES' AND LEN(ISNULL(@TQ,''))<=0)
+		BEGIN
+			--set @s =  'bcp "SELECT * FROM '+@TempTable+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			set @s =  'bcp "SELECT * FROM '+@TempTable+' UNION ALL SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+		ELSE IF(UPPER(@IncludeHeader) = 'NO' AND LEN(ISNULL(@TQ,''))>0)
+		BEGIN
+			set @s =  'bcp "SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+		ELSE
+		BEGIN
+			set @s =  'bcp "SELECT * FROM '+@MainTable+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+	END
+
+	
+	--To DROP Temp and Temp_1 Tables After BCP Is Done
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable_1+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable_1+''''
+		EXECUTE(@_vIsDataSQL)
+	END	
+
+	--To Get Inserted Row Count
+	UPDATE ETLFRAMEWORK_SERVER.EtlFramework.dbo.JobLog 
+	SET	   InsertRowCount = @_vRowCount 
+	WHERE  JobLogId = @JobLogId
+
+END

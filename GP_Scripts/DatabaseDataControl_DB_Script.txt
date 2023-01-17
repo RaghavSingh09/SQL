@@ -1,0 +1,1073 @@
+USE [DatabaseDataControl]
+GO
+/****** Object:  Schema [DatabaseDataControl]    Script Date: 1/17/2023 1:55:21 PM ******/
+CREATE SCHEMA [DatabaseDataControl]
+GO
+/****** Object:  Table [DatabaseDataControl].[ControlLoadHistoryLog]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [DatabaseDataControl].[ControlLoadHistoryLog](
+	[ControlLoadID] [int] NOT NULL,
+	[TableControlID] [int] NOT NULL,
+	[SourceFullQual] [varchar](512) NOT NULL,
+	[DestinationFullQual] [varchar](512) NOT NULL,
+	[Stage] [int] NOT NULL,
+	[BCP_OUTBeginTime] [datetime] NULL,
+	[BCP_OUTEndTime] [datetime] NULL,
+	[SQL_INBeginTime] [datetime] NULL,
+	[SQL_INEndTime] [datetime] NULL,
+	[LoadEndTime] [datetime] NULL,
+	[CurrentSourceRowCount] [bigint] NULL,
+	[CurrentDestinationRowCount] [bigint] NULL,
+	[ExportDurationMinutes] [int] NULL,
+	[InsertDurationMinutes] [int] NULL,
+	[TotalLoadDurationMinutes] [int] NULL,
+ CONSTRAINT [PK_ControlLoadHistoryLog] PRIMARY KEY CLUSTERED 
+(
+	[ControlLoadID] ASC,
+	[TableControlID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [DatabaseDataControl].[ControlLoadQueue]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [DatabaseDataControl].[ControlLoadQueue](
+	[TableControlID] [int] NOT NULL,
+	[SourceFullQual] [varchar](512) NOT NULL,
+	[DestinationFullQual] [varchar](512) NOT NULL,
+	[Stage] [int] NOT NULL,
+	[Filename] [varchar](256) NULL,
+	[BCP_OUT] [varchar](8000) NULL,
+	[BCP_OUTBeginTime] [datetime] NULL,
+	[BCP_OUTEndTime] [datetime] NULL,
+	[BCP_IN] [varchar](4000) NULL,
+	[BCP_INBeginTime] [datetime] NULL,
+	[BCP_INEndTime] [datetime] NULL,
+	[SQL_IN] [varchar](4000) NULL,
+	[SQL_INBeginTime] [datetime] NULL,
+	[SQL_INEndTime] [datetime] NULL,
+	[LoadEndTime] [datetime] NULL,
+	[HasDependency] [int] NULL,
+ CONSTRAINT [PK_ControlLoadQueue] PRIMARY KEY CLUSTERED 
+(
+	[TableControlID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [DatabaseDataControl].[RowCountComparision]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [DatabaseDataControl].[RowCountComparision](
+	[TableControlID] [int] NOT NULL,
+	[SourceFullQual] [varchar](512) NOT NULL,
+	[CurrentSourceRowCount] [bigint] NULL,
+	[DestinationFullQual] [varchar](512) NOT NULL,
+	[CurrentDestinationRowCount] [bigint] NULL,
+ CONSTRAINT [PK_RowCountComparision] PRIMARY KEY CLUSTERED 
+(
+	[TableControlID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [DatabaseDataControl].[SchemaComparision]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [DatabaseDataControl].[SchemaComparision](
+	[SchemaComparisionID] [int] IDENTITY(1,1) NOT NULL,
+	[TableControlID] [int] NULL,
+	[base_tablename] [varchar](128) NULL,
+	[src_servername] [varchar](128) NULL,
+	[src_databasename] [varchar](128) NULL,
+	[src_schema] [varchar](50) NULL,
+	[src_tablename] [varchar](128) NULL,
+	[src_column_id] [int] NULL,
+	[src_column_name] [varchar](128) NULL,
+	[src_datatypename] [varchar](50) NULL,
+	[src_is_user_defined] [bit] NULL,
+	[src_is_assembly_type] [bit] NULL,
+	[src_is_nullable] [bit] NULL,
+	[src_max_length] [int] NULL,
+	[src_precision] [int] NULL,
+	[src_scale] [int] NULL,
+	[dest_servername] [varchar](128) NULL,
+	[dest_databasename] [varchar](128) NULL,
+	[dest_schema] [varchar](50) NULL,
+	[dest_tablename] [varchar](128) NULL,
+	[dest_column_id] [int] NULL,
+	[dest_column_name] [varchar](128) NULL,
+	[dest_datatypename] [varchar](50) NULL,
+	[dest_is_user_defined] [bit] NULL,
+	[dest_is_assembly_type] [bit] NULL,
+	[dest_is_nullable] [bit] NULL,
+	[dest_max_length] [int] NULL,
+	[dest_precision] [int] NULL,
+	[dest_scale] [int] NULL,
+	[src_dest_match_flg] [bit] NULL,
+ CONSTRAINT [PK_SchemaComparision] PRIMARY KEY CLUSTERED 
+(
+	[SchemaComparisionID] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  Table [DatabaseDataControl].[TableControl]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [DatabaseDataControl].[TableControl](
+	[TableControlID] [int] IDENTITY(1,1) NOT NULL,
+	[TableName] [varchar](128) NOT NULL,
+	[SourceServername] [varchar](128) NOT NULL,
+	[SourceDatabasename] [varchar](128) NOT NULL,
+	[SourceSchemaname] [varchar](128) NOT NULL,
+	[SourceTablename] [varchar](128) NOT NULL,
+	[DestinationServername] [varchar](128) NOT NULL,
+	[DestinationDatabasename] [varchar](128) NOT NULL,
+	[DestinationSchemaname] [varchar](128) NOT NULL,
+	[DestinationTablename] [varchar](128) NOT NULL,
+	[HasDerivedColumn] [bit] NOT NULL,
+	[HasDependency] [int] NOT NULL,
+	[HasCharIssues] [bit] NOT NULL,
+	[TruncOrDel] [bit] NOT NULL,
+	[IsActive] [bit] NOT NULL,
+	[Group] [int] NOT NULL,
+	[DateAdded] [datetime] NOT NULL,
+ CONSTRAINT [PK_TableControl] PRIMARY KEY CLUSTERED 
+(
+	[TableName] ASC,
+	[SourceServername] ASC,
+	[SourceDatabasename] ASC,
+	[SourceSchemaname] ASC,
+	[SourceTablename] ASC,
+	[DestinationServername] ASC,
+	[DestinationDatabasename] ASC,
+	[DestinationSchemaname] ASC,
+	[DestinationTablename] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[ExecuteBulkInsertStatement]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/*************************************************************************************************************
+Author:			Paul W Nolan
+Create date:	03/16/2016
+Description:	Truncates/Deletes Destination table and Executes Bulk Insert Statement from ControlLoadQueue
+
+Change Log:
+Date			Modified By		Notes
+--------------------------------------------------------------------------------------------------------------
+03/16/2016		PWN				Created
+**************************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[ExecuteBulkInsertStatement]
+@SQL_IN varchar(4000)
+,@DestinationFullQual varchar(512)
+AS
+
+----DECLARE @DestinationFullQual varchar(512)='HALNLEVSQLD01.PASSPORTDW.DBO.PROVIDERTXN'
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+--GET TABLES THAT REQUIRE DELETE SYNTAX (BC INCL IN VIEW, ETC.) 
+IF OBJECT_ID('tempdb..#DelTables') IS NOT NULL DROP TABLE #DelTables;
+SELECT DestinationDatabasename+'.'+DestinationSchemaname+'.'+DestinationTablename Tablename
+INTO #DelTables
+FROM [DatabaseDataControl].[TableControl] WITH(nolock) WHERE TruncOrDel=0
+
+----TRUNCATE/DELETE DESTINATION TABLE BEFORE BULK INSERT
+DECLARE @DestinationFullQualTrim varchar(512)
+DECLARE @StartPos int,@Len int
+SELECT @Len=LEN(@DestinationFullQual)+1
+
+SELECT @StartPos=CHARINDEX('.', @DestinationFullQual);
+SELECT @DestinationFullQualTrim=SUBSTRING(@DestinationFullQual,@StartPos+1,@Len-@StartPos)
+
+DECLARE @TRUNC_SQL NVARCHAR(4000),@DEL_SQL NVARCHAR(4000)
+SET @TRUNC_SQL = 'TRUNCATE TABLE ' + CAST(@DestinationFullQualTrim as NVARCHAR(512))
+SET @DEL_SQL = 'DELETE ' + CAST(@DestinationFullQualTrim as NVARCHAR(512))
+
+--SELECT @DestinationFullQualTrim,@TRUNC_SQL,@DEL_SQL
+
+IF EXISTS (SELECT TOP 1 1 FROM #DelTables WHERE Tablename=@DestinationFullQualTrim)
+BEGIN
+  EXEC sp_executesql @DEL_SQL
+END
+ELSE
+BEGIN
+  EXEC sp_executesql @TRUNC_SQL
+END
+
+----BULK INSERT
+DECLARE @BATCHSIZE NVARCHAR(50) = ' WITH (BATCHSIZE = 10000);'
+,@SQL NVARCHAR(4000)
+SELECT @SQL=CAST(@SQL_IN as NVARCHAR(4000))+@BATCHSIZE
+
+BEGIN
+EXECUTE sp_executesql @SQL
+END
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[GenerateControlLoadQueue]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*************************************************************************************************************
+Author:			Paul W Nolan
+Create date:	03/16/2016
+Description:	Generates BCP OUT, BCP_IN and BULK INSERT commands and ControlLoadQueue Rows
+				TARGET: DatabaseDataControl.ControlLoadQueue
+
+Change Log:
+Date			Modified By		Notes
+--------------------------------------------------------------------------------------------------------------
+03/16/2016		PWN				Created
+07/03/2019		PWN				Removed @Group logic
+07/06/2019		PWN				Amended @Filename to use destination table versus source metadata
+04/10/2020		PWN				WHEN src_dest_match_flg=0 and dest_datatypename IN ('int','bigint') THEN '0 AS [' + dest_column_name + ']'
+02/22/2021		PWN				Revisted logic in #BCPTableControl
+**************************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[GenerateControlLoadQueue]
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+TRUNCATE TABLE DatabaseDataControl.ControlLoadQueue
+
+IF OBJECT_ID('tempdb..#BCPTableControl') IS NOT NULL DROP TABLE #BCPTableControl;
+CREATE TABLE #BCPTableControl(TableControlID int NOT NULL,base_tablename varchar(128) NOT NULL,src_servername varchar(128) NOT NULL,src_databasename varchar(128) NOT NULL,src_schema varchar(128) NOT NULL
+,dest_servername varchar(128) NOT NULL,dest_databasename varchar(128) NOT NULL,dest_schema varchar(128) NOT NULL,HasDependency int NOT NULL,HasCharIssues bit NOT NULL,HasXML bit NULL)
+
+--INSERT INTO #BCPTableControl--HANDLES ROWCOUNT LEVEL DELTAS
+--SELECT DISTINCT t.TableControlID,base_tablename,src_servername,src_databasename,src_schema,dest_servername,dest_databasename,dest_schema,t.HasDependency,t.HasCharIssues,NULL as HasXML
+--FROM DatabaseDataControl.SchemaComparision s WITH(nolock)
+--JOIN DatabaseDataControl.TableControl t WITH(nolock) ON s.TableControlID=t.TableControlID
+--WHERE EXISTS (SELECT 1 FROM DatabaseDataControl.RowCountComparision r WHERE s.TableControlID=r.TableControlID and CurrentSourceRowCount<>CurrentDestinationRowCount) and
+--src_dest_match_flg=1 
+INSERT INTO #BCPTableControl--HANDLES ROWCOUNT LEVEL DELTAS
+SELECT DISTINCT t.TableControlID,t.TableName,t.SourceServername,t.SourceDatabasename,t.SourceSchemaname,t.DestinationServername,t.DestinationDatabasename,t.DestinationSchemaname,t.HasDependency,t.HasCharIssues,NULL as HasXML
+FROM DatabaseDataControl.TableControl t WITH(nolock)
+WHERE EXISTS(SELECT 1 FROM DatabaseDataControl.RowCountComparision r WHERE t.TableControlID=r.TableControlID and 
+--(CurrentSourceRowCount<>CurrentDestinationRowCount
+(CurrentSourceRowCount-CurrentDestinationRowCount)>2) and
+EXISTS(SELECT 1 FROM DatabaseDataControl.SchemaComparision s WITH(nolock) WHERE t.TableControlID=s.TableControlID and src_dest_match_flg=1)
+--SELECT * FROM #BCPTableControl
+
+UPDATE #BCPTableControl
+SET HasXML=CASE WHEN base_tablename IN (SELECT DISTINCT base_tablename 
+FROM DatabaseDataControl.SchemaComparision WITH(nolock)
+WHERE src_dest_match_flg=1 and (src_datatypename='xml' or dest_datatypename='xml')) THEN 1 ELSE 0 END
+--SELECT * from #BCPTableControl
+
+WHILE EXISTS(SELECT TOP 1 1 FROM #BCPTableControl)
+BEGIN
+	DECLARE @TableControlID int, @TableName varchar(128),@SourceServerName varchar(50),@DestinationServerName varchar(50),@SourceDatabaseName varchar(50),@DestinationDatabaseName varchar(50)
+	,@SourceSchemaName varchar(50),@DestinationSchemaName varchar(50),@HasCharIssues bit,@HasXML bit,@Filename varchar(256),@SourceFullQual varchar(512),@DestinationFullQual varchar(512)
+
+	SELECT TOP 1 @TableControlID=TableControlID
+	,@TableName=base_tablename
+	,@SourceServerName=src_servername
+	,@SourceDatabaseName=src_databasename
+	,@SourceSchemaName=src_schema
+	,@DestinationServerName=dest_servername
+	,@DestinationDatabaseName=dest_databasename
+	,@DestinationSchemaName=dest_schema
+	,@HasCharIssues=hascharissues
+	,@HasXML=HasXML
+	FROM #BCPTableControl 
+	ORDER BY TableControlID
+
+	SET @Filename='\\'+@DestinationServerName+'\H$\MSSQL\DatabaseDataControl\'+@DestinationServerName+'.'+@DestinationDatabaseName+'.'+@DestinationSchemaName+'.'+@TableName+'.dat'
+	
+	SELECT @SourceFullQual=@SourceServername+'.'+@SourceDatabasename+'.'+@SourceSchemaname+'.'+@TableName
+	,@DestinationFullQual=@DestinationServername+'.'+@DestinationDatabasename+'.'+@DestinationSchemaname+'.'+@TableName
+
+	IF @HasXML=0 and @HasCharIssues=0
+	BEGIN
+		DECLARE @ColumnName varchar(8000),@BCP_OUT varchar(8000),@BCP_IN varchar(4000),@SQL_BULKINSERT varchar(4000)
+		SET @ColumnName = ' '
+
+		SELECT @ColumnName = @ColumnName + 
+		CASE
+		WHEN dest_datatypename IN ('char','varchar') and dest_column_name IN ('PMTEXCNOTE','DISCOVEREMAILADDRESS','LEGALADDRESS1','LEGALADDRESS2','LEGALCITY','WEBADDRESS','FCSFNSNBR','LEGALSTATE') THEN 'LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(' + dest_column_name + ',CHAR(9),'' ''),CHAR(13),'' ''),CHAR(10),'' ''))) AS [' + dest_column_name + ']'--dbo.merchants specific
+		WHEN src_dest_match_flg=0 and dest_datatypename LIKE '%char' THEN 'NULL AS [' + dest_column_name + ']'
+		--WHEN dest_datatypename LIKE '%char' THEN 'LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(' + dest_column_name + ',CHAR(9),'' ''),CHAR(13),'' ''),CHAR(10),'' ''))) AS [' + dest_column_name + ']'
+		WHEN src_dest_match_flg=0 and dest_datatypename='datetime' THEN 'CAST(''1900-01-01 00:00:00.000'' as datetime) AS [' + dest_column_name + ']'
+		WHEN src_dest_match_flg=0 and dest_datatypename IN ('int','bigint') THEN '0 AS [' + dest_column_name + ']'
+		ELSE '[' + dest_column_name + ']' END + ','
+		FROM DatabaseDataControl.SchemaComparision WITH(nolock)
+		WHERE TableControlID=@TableControlID
+		and dest_column_name<>''
+		ORDER BY dest_column_id ASC
+
+		SET @BCP_OUT = '"SELECT' + SUBSTRING(@ColumnName, 1, DATALENGTH(@ColumnName) - 1) + ' FROM ' + @SourceServerName + '.' + @SourceDatabaseName + '.' + @SourceSchemaName + '.' + @TableName 
+		+ ' WITH(nolock);" queryout ' + @Filename + ' -c -T -b10000 -e ' + @Filename + '_errorOUT.dat'
+
+		SET @BCP_IN = @DestinationDatabaseName + '.' + @DestinationSchemaname + '.'+ @TableName + ' in ' + @Filename + ' -T -c -b10000 -S ' + @DestinationServerName + ' -e ' +@Filename + '_errorIN.dat'
+
+		SET @SQL_BULKINSERT = 'BULK INSERT '+ @DestinationDatabaseName + '.' + @DestinationSchemaname + '.'+ @TableName + ' FROM ' + '''' + @Filename + ''''
+
+		INSERT INTO DatabaseDataControl.ControlLoadQueue(TableControlID,SourceFullQual,DestinationFullQual,Stage,[Filename],BCP_OUT,BCP_OUTBeginTime,BCP_OUTEndTime,BCP_IN,BCP_INBeginTime,BCP_INEndTime
+		,SQL_IN,SQL_INBeginTime,SQL_INEndTime,LoadEndTime,HasDependency)
+		SELECT @TableControlID,@SourceFullQual,@DestinationFullQual,1,@Filename,@BCP_OUT,NULL,NULL,@BCP_IN,NULL,NULL,@SQL_BULKINSERT,NULL,NULL,NULL,NULL
+	END
+
+	IF @HasXML=0 and @HasCharIssues=1--REMOVE TABS AND ENTERS
+	BEGIN
+		DECLARE @CharColumnName varchar(8000),@CharBCP_OUT varchar(8000),@CharBCP_IN varchar(4000),@CharSQL_BULKINSERT varchar(4000)
+		SET @CharColumnName = ' '
+
+		SELECT @CharColumnName = @CharColumnName + 
+		--dest_column_name + ','
+		CASE
+		WHEN dest_datatypename IN ('text') THEN 'REPLACE(REPLACE(CAST(SUBSTRING(' + dest_column_name + ',1,8000) AS VARCHAR),CHAR(9),'' ''),CHAR(13) + CHAR(10),'' '') AS [' + dest_column_name + ']'
+		WHEN dest_datatypename IN ('char','varchar') THEN 'LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(' + dest_column_name + ',CHAR(9),'' ''),CHAR(13),'' ''),CHAR(10),'' ''))) AS [' + dest_column_name + ']'
+		WHEN src_dest_match_flg=0 and dest_datatypename='datetime' THEN 'CAST(''1900-01-01 00:00:00.000'' as datetime) AS ' + dest_column_name + ']'
+		WHEN src_dest_match_flg=0 and dest_datatypename='int' THEN '0 AS [' + dest_column_name + ']'
+		ELSE '[' + dest_column_name + ']' END + ','
+		FROM DatabaseDataControl.SchemaComparision WITH(nolock)
+		WHERE TableControlID=@TableControlID
+		and dest_column_name<>''
+		ORDER BY dest_column_id ASC
+
+		SET @CharBCP_OUT = '"SELECT' + SUBSTRING(@CharColumnName, 1, DATALENGTH(@CharColumnName) - 1) + ' FROM ' + @SourceServerName + '.' + @SourceDatabaseName + '.' + @SourceSchemaName + '.' + @TableName 
+		+ ' WITH(nolock);" queryout ' + @Filename + ' -c -T -b10000 -e ' + @Filename + '_errorOUT.dat'
+
+		SET @CharBCP_IN = @DestinationDatabaseName + '.' + @DestinationSchemaname + '.'+ @TableName + ' in ' + @Filename + ' -T -c -b10000 -S ' + @DestinationServerName + ' -e ' +@Filename + '_errorIN.dat'
+
+		SET @CharSQL_BULKINSERT = 'BULK INSERT '+ @DestinationDatabaseName + '.' + @DestinationSchemaname + '.'+ @TableName + ' FROM ' + '''' + @Filename + ''''
+
+		INSERT INTO DatabaseDataControl.ControlLoadQueue(TableControlID,SourceFullQual,DestinationFullQual,Stage,[Filename],BCP_OUT,BCP_OUTBeginTime,BCP_OUTEndTime,BCP_IN,BCP_INBeginTime,BCP_INEndTime
+		,SQL_IN,SQL_INBeginTime,SQL_INEndTime,LoadEndTime,HasDependency)
+		SELECT @TableControlID,@SourceFullQual,@DestinationFullQual,1,@Filename,@CharBCP_OUT,NULL,NULL,@CharBCP_IN,NULL,NULL,@CharSQL_BULKINSERT,NULL,NULL,NULL,NULL
+	END
+
+	IF @HasXML=1
+	BEGIN
+		DECLARE @Xml1ColumnName varchar(8000),@Xml2ColumnName varchar(8000),@XmlBCP_OUT varchar(8000),@XmlBCP_IN varchar(4000),@XmlSQL_BULKINSERT varchar(4000)
+		SET @Xml1ColumnName = ' '
+		SET @Xml2ColumnName = ' '
+		SET @XmlSQL_BULKINSERT = ' '
+
+		SELECT @Xml1ColumnName = @Xml1ColumnName + 
+		CASE WHEN dest_datatypename='xml' THEN 'CAST(['+dest_column_name+'] as XML) AS [' + dest_column_name + ']' 
+		ELSE '[' + dest_column_name + ']' END + ','
+		FROM DatabaseDataControl.SchemaComparision WITH(nolock)
+		WHERE TableControlID=@TableControlID
+		and dest_column_name<>''
+		ORDER BY dest_column_id ASC
+
+		SELECT @Xml2ColumnName = @Xml2ColumnName + 
+		CASE WHEN dest_datatypename='xml' THEN 'CAST(['+dest_column_name+'] as VARCHAR(MAX)) AS [' + dest_column_name + ']' 
+		WHEN src_dest_match_flg=0 and dest_datatypename='int' THEN '0 AS ' + dest_column_name
+		WHEN src_dest_match_flg=0 and dest_datatypename='varchar' THEN 'CAST(0 as VARCHAR) AS [' + dest_column_name + ']'
+		ELSE '[' + dest_column_name + ']' END + ','
+		FROM DatabaseDataControl.SchemaComparision WITH(nolock)
+		WHERE TableControlID=@TableControlID
+		and dest_column_name<>''
+		ORDER BY dest_column_id ASC
+
+		SET @XmlBCP_OUT='"SELECT ' + @Xml1ColumnName + 'FROM OPENQUERY(' + @SourceServerName + ',''SELECT ' + @Xml2ColumnName + 'FROM ' + @SourceDatabaseName + '.' + @SourceSchemaName + '.' + @TableName
+		+ ' WITH(nolock)'');" queryout ' + @Filename + ' -c -T -b10000 -e' + @Filename + '_errorOUT.dat'
+
+		SET @XmlBCP_IN = @DestinationDatabaseName + '.' + @DestinationSchemaname + '.' + @TableName + ' in ' + @Filename + ' -T -c -b10000 -S ' + @DestinationServerName + ' -e ' +@Filename + '_errorIN.dat'
+
+		SET @XmlSQL_BULKINSERT = 'BULK INSERT '+ @DestinationDatabaseName + '.' + @DestinationSchemaname + '.'+ @TableName + ' FROM ' + '''' + @Filename + ''''
+
+		INSERT INTO DatabaseDataControl.ControlLoadQueue(TableControlID,SourceFullQual,DestinationFullQual,Stage,[Filename],BCP_OUT,BCP_OUTBeginTime,BCP_OUTEndTime,BCP_IN,BCP_INBeginTime,BCP_INEndTime
+		,SQL_IN,SQL_INBeginTime,SQL_INEndTime,LoadEndTime,HasDependency)
+		SELECT @TableControlID,@SourceFullQual,@DestinationFullQual,1,@Filename
+		,REPLACE(@XmlBCP_OUT,',FROM',' FROM'),NULL,NULL,@XmlBCP_IN,NULL,NULL,@XmlSQL_BULKINSERT,NULL,NULL,NULL,NULL
+	END
+
+	DELETE FROM #BCPTableControl WHERE TableControlID=@TableControlID
+END
+
+--SELECT * FROM DatabaseDataControl.ControlLoadQueue WITH(nolock)
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[GenerateRowCountComparision]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+/*************************************************************************************************************
+Author:			Paul W Nolan
+Create date:	03/16/2016
+Description:	Gets row counts for source and destination tables included in DEV daily refresh
+				Purpose is to identitfy tables that need to be refreshed if row counts between src and dest differ
+				TARGET: DatabaseDataControl.RowCountComparision
+Change Log:
+Date			Modified By		Notes
+--------------------------------------------------------------------------------------------------------------
+03/16/2016		PWN				Created
+**************************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[GenerateRowCountComparision]
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+TRUNCATE TABLE DatabaseDataControl.RowCountComparision
+
+DECLARE @Records TABLE(Input nvarchar(128),TableControlID int,CurrentSourceRowCount bigint,CurrentDestinationRowCount bigint)
+
+IF OBJECT_ID('tempdb..#TableControl') IS NOT NULL DROP TABLE #TableControl;
+SELECT DISTINCT TableControlID,base_tablename,src_servername,src_databasename,src_schema,dest_servername,dest_databasename,dest_schema
+INTO #TableControl
+FROM DatabaseDataControl.SchemaComparision WITH(nolock)
+WHERE src_dest_match_flg=1
+
+WHILE EXISTS(SELECT TOP 1 1 FROM #TableControl)
+BEGIN
+	DECLARE @TableControlID varchar(128), @TableName varchar(128),@SourceServerName varchar(50),@DestinationServerName varchar(50),@SourceDatabaseName varchar(50),@DestinationDatabaseName varchar(50)
+	,@SourceSchemaName varchar(50),@DestinationSchemaName varchar(50),@SourceSQL nvarchar(4000),@DestinationSQL nvarchar(4000)
+
+	SELECT TOP 1 @TableControlID=TableControlID
+	,@TableName=base_tablename
+	,@SourceServerName=src_servername
+	,@DestinationServerName=dest_servername
+	,@SourceDatabaseName=src_databasename
+	,@DestinationDatabaseName=dest_databasename
+	,@SourceSchemaName=src_schema
+	,@DestinationSchemaName=dest_schema
+	FROM #TableControl 
+	ORDER BY TableControlID
+
+	SET @SourceSQL='SELECT ''S'',''' +@TableControlID+ ''',src_cnt,0 FROM OPENQUERY(' + @SourceServerName + ',''SELECT COUNT_BIG(1) src_cnt FROM ' + @SourceDatabaseName + '.' + @SourceSchemaName + '.' + @TableName + ' WITH(nolock)'');'
+	SET @DestinationSQL='SELECT ''T'',''' +@TableControlID+ ''',0,dest_cnt FROM OPENQUERY(' + @DestinationServerName + ',''SELECT COUNT_BIG(1) dest_cnt FROM ' + @DestinationDatabaseName + '.' + @DestinationSchemaName + '.' + @TableName + ' WITH(nolock)'');'
+
+	INSERT INTO @Records(Input,TableControlID,CurrentSourceRowCount,CurrentDestinationRowCount)
+	EXECUTE sp_executesql @SourceSQL
+	
+	INSERT INTO @Records(Input,TableControlID,CurrentSourceRowCount,CurrentDestinationRowCount)
+	EXECUTE sp_executesql @DestinationSQL
+
+	DELETE FROM #TableControl WHERE TableControlID=@TableControlID
+END
+
+--INSERT INTO DATABASEDATACONTROL.ROWCOUNTCOMPARISION
+BEGIN
+	INSERT INTO DatabaseDataControl.RowCountComparision(TableControlID,SourceFullQual,CurrentSourceRowCount,DestinationFullQual,CurrentDestinationRowCount)
+	SELECT r.TableControlID
+	,SourceServername+'.'+SourceDatabasename+'.'+SourceSchemaname+'.'+SourceTablename
+	,SUM(r.CurrentSourceRowCount) CurrentSourceRowCount
+	,DestinationServername+'.'+DestinationDatabasename+'.'+DestinationSchemaname+'.'+DestinationTablename
+	,SUM(r.CurrentDestinationRowCount) CurrentDestinationRowCount
+	FROM @Records r
+	JOIN DatabaseDataControl.TableControl t WITH(nolock) on r.TableControlID=t.TableControlID
+	WHERE t.IsActive=1
+	GROUP BY r.TableControlID
+	,SourceServername+'.'+SourceDatabasename+'.'+SourceSchemaname+'.'+SourceTablename
+	,DestinationServername+'.'+DestinationDatabasename+'.'+DestinationSchemaname+'.'+DestinationTablename
+END
+
+--SELECT * FROM DatabaseDataControl.RowCountComparision WITH(nolock) ORDER BY TableControlID
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[GenerateSchemaComparision]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/*****************************************************************************************************************
+Author:			Paul W Nolan
+Create date:	03/14/2016
+Description:	Generate Source and Target table schema metadata
+				TARGET: DatabaseDataControl.SchemaComparision
+				
+Modification Log:
+Date			Modified By			Comment
+------------------------------------------------------------------------------------------------------------------
+03/14/2016		PWN					Created
+07/03/2019		PWN					Refactored logic so destination metadata driven versus source
+03/23/2021		PWN					Refactored logic so destination handle same src
+*****************************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[GenerateSchemaComparision]
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+IF OBJECT_ID('tempdb..#InputCriteria') IS NOT NULL DROP TABLE #InputCriteria;
+IF OBJECT_ID('tempdb..#SourceSchemaResults') IS NOT NULL DROP TABLE #SourceSchemaResults;
+IF OBJECT_ID('tempdb..#DestinationSchemaResults') IS NOT NULL DROP TABLE #DestinationSchemaResults;
+
+CREATE TABLE #InputCriteria(usage bit,servername varchar(128),databasename varchar(128))
+INSERT INTO #InputCriteria(usage,servername,databasename)
+SELECT DISTINCT 0,SourceServername,SourceDatabasename FROM DatabaseDataControl.DatabaseDataControl.TableControl WITH(nolock) WHERE IsActive=1 UNION ALL
+SELECT DISTINCT 1,DestinationServername,DestinationDatabasename FROM DatabaseDataControl.DatabaseDataControl.TableControl WITH(nolock) WHERE IsActive=1
+--and tablename='ACHRUNUPDATEPROGRESS'
+
+----#SourceSchemaResults
+CREATE TABLE #SourceSchemaResults(tablecontrolid int null,servername varchar(128) NOT NULL,databasename varchar(128) NOT NULL,[schema] varchar(50) NOT NULL,tablename varchar(128) NOT NULL,column_id int NULL,column_name varchar(128) NOT NULL
+,datatypename varchar(50) NULL,is_user_defined bit NULL,is_assembly_type bit NULL,is_nullable bit NULL,max_length int NULL,[precision] int NULL,scale int NULL)
+ALTER TABLE #SourceSchemaResults ADD PRIMARY KEY CLUSTERED (servername,databasename,[schema],tablename,column_name)
+
+WHILE EXISTS(SELECT TOP 1 1 FROM #InputCriteria WHERE usage=0)
+BEGIN
+DECLARE @Sourceservername varchar(128),@Sourcedatabasename varchar(128)
+SELECT TOP 1 @Sourceservername=servername,@Sourcedatabasename=databasename FROM #InputCriteria WHERE usage=0
+
+DECLARE @SourceStatement1 nvarchar(200)='SELECT NULL as tablecontrolid,'+''''+@Sourceservername+''''+' as servername,'''+@Sourcedatabasename+''' as databasename'
+,@SourceStatement2 nvarchar(200)=',[schema],tablename,column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale '
+,@SourceStatement3 nvarchar(200)='FROM OPENQUERY('+@Sourceservername+',''SELECT CAST(UPPER(s.name) AS VARCHAR(128)) [schema],CAST(UPPER(ts.name) AS VARCHAR(128)) tablename,c.column_id'
+,@SourceStatement4 nvarchar(200)=',CAST(UPPER(c.name) AS VARCHAR(128)) column_name,CAST(t.name AS VARCHAR(50)) datatypename,t.is_user_defined,t.is_assembly_type,c.is_nullable,c.max_length,c.[precision],c.scale '
+,@SourceStatement5 nvarchar(200)='FROM '+''+@Sourcedatabasename+''+'.sys.columns c with(nolock)'
+,@SourceStatement6 nvarchar(200)=' JOIN '+''+@Sourcedatabasename+''+'.sys.types t with(nolock) on c.user_type_id=t.user_type_id'
+,@SourceStatement7 nvarchar(200)=' JOIN '+''+@Sourcedatabasename+''+'.sys.tables ts with(nolock) on ts.object_id=c.object_id'
+,@SourceStatement8 nvarchar(200)=' JOIN '+''+@Sourcedatabasename+''+'.sys.schemas s with(nolock) on s.schema_id=ts.schema_id'+''')'
+DECLARE @SourceSQL nvarchar(4000)=@SourceStatement1+@SourceStatement2+@SourceStatement3+@SourceStatement4+@SourceStatement5+@SourceStatement6+@SourceStatement7+@SourceStatement8
+
+INSERT INTO #SourceSchemaResults
+EXEC sp_executesql @SourceSQL;
+
+DELETE FROM #InputCriteria WHERE databasename=@Sourcedatabasename and usage=0
+END
+
+----#DestinationSchemaResults
+CREATE TABLE #DestinationSchemaResults(tablecontrolid int null,servername varchar(128) NOT NULL,databasename varchar(128) NOT NULL,[schema] varchar(50) NOT NULL,tablename varchar(128) NOT NULL,column_id int NULL,column_name varchar(128) NOT NULL
+,datatypename varchar(50) NULL,is_user_defined bit NULL,is_assembly_type bit NULL,is_nullable bit NULL,max_length int NULL,[precision] int NULL,scale int NULL)
+ALTER TABLE #DestinationSchemaResults ADD PRIMARY KEY CLUSTERED (servername,databasename,[schema],tablename,column_name)
+
+WHILE EXISTS(SELECT TOP 1 1 FROM #InputCriteria WHERE usage=1)
+BEGIN
+DECLARE @Destinationservername varchar(128),@Destinationdatabasename varchar(128)
+SELECT TOP 1 @Destinationservername=servername,@Destinationdatabasename=databasename FROM #InputCriteria WHERE usage=1
+
+DECLARE @DestinationStatement1 nvarchar(200)='SELECT NULL as tablecontrolid,'+''''+@Destinationservername+''''+' as servername,'''+@Destinationdatabasename+''' as databasename'
+,@DestinationStatement2 nvarchar(200)=',[schema],tablename,column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale '
+,@DestinationStatement3 nvarchar(200)='FROM OPENQUERY('+@Destinationservername+',''SELECT CAST(UPPER(s.name) AS VARCHAR(128)) [schema],CAST(UPPER(ts.name) AS VARCHAR(128)) tablename,c.column_id'
+,@DestinationStatement4 nvarchar(200)=',CAST(UPPER(c.name) AS VARCHAR(128)) column_name,CAST(t.name AS VARCHAR(50)) datatypename,t.is_user_defined,t.is_assembly_type,c.is_nullable,c.max_length,c.[precision],c.scale '
+,@DestinationStatement5 nvarchar(200)='FROM '+''+@Destinationdatabasename+''+'.sys.columns c with(nolock)'
+,@DestinationStatement6 nvarchar(200)=' JOIN '+''+@Destinationdatabasename+''+'.sys.types t with(nolock) on c.user_type_id=t.user_type_id'
+,@DestinationStatement7 nvarchar(200)=' JOIN '+''+@Destinationdatabasename+''+'.sys.tables ts with(nolock) on ts.object_id=c.object_id'
+,@DestinationStatement8 nvarchar(200)=' JOIN '+''+@Destinationdatabasename+''+'.sys.schemas s with(nolock) on s.schema_id=ts.schema_id'+''')'
+DECLARE @DestinationSQL nvarchar(4000)=@DestinationStatement1+@DestinationStatement2+@DestinationStatement3+@DestinationStatement4+@DestinationStatement5+@DestinationStatement6+@DestinationStatement7+@DestinationStatement8
+
+INSERT INTO #DestinationSchemaResults
+EXEC sp_executesql @DestinationSQL;
+
+DELETE FROM #InputCriteria WHERE databasename=@Destinationdatabasename and usage=1
+END
+
+--SELECT * FROM #InputCriteria
+--SELECT * FROM #SourceSchemaResults
+--SELECT * FROM #DestinationSchemaResults
+
+--UPDATE TableControlID in #SourceSchemaResults and #DestinationSchemaResults
+BEGIN 
+--UPDATE #SourceSchemaResults
+--SET TableControlID=t.TableControlID
+--FROM #SourceSchemaResults s
+--JOIN DatabaseDataControl.TableControl t WITH(nolock) ON s.servername=t.SourceServername and
+--s.databasename=t.SourceDatabasename and
+--s.[schema]=t.SourceSchemaname and
+--s.tablename=t.SourceTablename
+
+UPDATE #DestinationSchemaResults
+SET TableControlID=t.TableControlID
+FROM #DestinationSchemaResults d
+JOIN DatabaseDataControl.TableControl t WITH(nolock) ON d.servername=t.DestinationServername and
+d.databasename=t.DestinationDatabasename and
+d.[schema]=t.DestinationSchemaname and
+d.tablename=t.DestinationTablename
+END
+
+--SELECT * FROM #SourceSchemaResults WHERE tablename='ACHRUNUPDATEPROGRESS' ORDER BY SERVERNAME,DATABASENAME,[SCHEMA],TABLENAME,column_id
+--SELECT * FROM #DestinationSchemaResults WHERE tablename='ACHRUNUPDATEPROGRESS' ORDER BY TableControlID DESC,column_id
+
+----DatabaseDataControl.SchemaComparision
+BEGIN
+TRUNCATE TABLE DatabaseDataControl.SchemaComparision
+
+--INSERT DESTNATION METADATA
+INSERT INTO DatabaseDataControl.SchemaComparision(TableControlID,base_tablename,dest_servername,dest_databasename,dest_schema,dest_tablename,dest_column_id,dest_column_name,dest_datatypename,dest_is_user_defined
+,dest_is_assembly_type,dest_is_nullable,dest_max_length,dest_precision,dest_scale,src_dest_match_flg)
+SELECT d.tablecontrolid,d.tablename,d.servername,d.databasename,d.[schema],d.tablename,d.column_id,d.column_name,d.datatypename,d.is_user_defined,d.is_assembly_type,d.is_nullable,d.max_length,d.[precision],d.scale,NULL
+FROM #DestinationSchemaResults d
+WHERE EXISTS (SELECT 1 FROM DatabaseDataControl.TableControl t WITH(nolock) WHERE d.tablecontrolid=t.TableControlID and d.servername=t.DestinationServername and d.databasename=t.DestinationDatabasename and d.[schema]=t.DestinationSchemaname and d.tablename=t.DestinationTablename and IsActive=1)
+--AND tablename='ACHRUNUPDATEPROGRESS'
+END
+--SELECT * FROM DatabaseDataControl.SchemaComparision
+
+--UPDATE DESTINATION METADATA WITH RELATED SOURCE METADATA
+BEGIN
+UPDATE DatabaseDataControl.SchemaComparision
+SET src_servername=src.servername
+,src_databasename=src.databasename
+,src_schema=src.[schema]
+,src_tablename=src.tablename
+,src_column_id=src.column_id
+,src_column_name=src.column_name
+,src_datatypename=src.datatypename
+,src_is_user_defined=src.is_user_defined
+,src_is_assembly_type=src.is_assembly_type
+,src_is_nullable=src.is_nullable
+,src_max_length=src.max_length
+,src_precision=src.[precision]
+,src_scale=src.scale
+,src_dest_match_flg=NULL
+FROM DatabaseDataControl.SchemaComparision s WITH(nolock) 
+JOIN #SourceSchemaResults src on s.dest_schema=src.[schema] and s.dest_tablename=src.tablename and s.dest_column_name=src.column_name
+--WHERE EXISTS (SELECT 1 FROM DatabaseDataControl.TableControl t WITH(nolock) WHERE src.servername=t.SourceServername and src.databasename=t.SourceDatabasename and src.[schema]=t.SourceSchemaname and src.tablename=t.SourceTablename and IsActive=1)
+JOIN DatabaseDataControl.TableControl t WITH(nolock) ON s.TableControlID=t.TableControlID and src.servername=t.SourceServername and src.databasename=t.SourceDatabasename and src.[schema]=t.SourceSchemaname and src.tablename=t.SourceTablename 
+WHERE t.IsActive=1
+END
+--SELECT * FROM DatabaseDataControl.SchemaComparision
+
+--INSERT SOURCE ONLY METADATA
+BEGIN 
+INSERT INTO DatabaseDataControl.SchemaComparision(TableControlID,base_tablename,src_servername,src_databasename,src_schema,src_tablename,src_column_id,src_column_name,src_datatypename,src_is_user_defined
+,src_is_assembly_type,src_is_nullable,src_max_length,src_precision,src_scale,src_dest_match_flg)
+SELECT src.tablecontrolid,tablename,servername,databasename,[schema],tablename,column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale,NULL
+FROM #SourceSchemaResults src
+WHERE EXISTS (SELECT 1 FROM DatabaseDataControl.TableControl t WITH(nolock) WHERE src.servername=t.DestinationServername and src.databasename=t.DestinationDatabasename and src.tablename=t.DestinationTablename and IsActive=1) and
+NOT EXISTS (SELECT 1 FROM DatabaseDataControl.SchemaComparision s WHERE s.[src_schema]=src.[schema] and s.src_tablename=src.tablename and s.src_column_name=src.column_name)
+END
+
+------UPDATE TABLECONTROLID FROM DATABASEDATACONTROL.TABLECONTROL
+----BEGIN
+----UPDATE DatabaseDataControl.SchemaComparision
+----SET TableControlID=COALESCE(t.TableControlID,0)
+----FROM DatabaseDataControl.SchemaComparision s WITH(nolock)
+----LEFT JOIN DatabaseDataControl.TableControl t WITH(nolock) on 
+----s.src_servername=t.SourceServername and 
+----s.src_databasename=t.SourceDatabasename and
+----s.src_schema=t.SourceSchemaname and
+----s.src_tablename=t.SourceTablename and
+----s.dest_servername=t.DestinationServername and
+----s.dest_databasename=t.DestinationDatabasename and
+----s.dest_schema=t.DestinationSchemaname and
+----s.dest_tablename=t.DestinationTablename
+----END
+
+--UPDATE SRC_DEST_MATCH_FLG COLUMN
+BEGIN
+UPDATE DatabaseDataControl.SchemaComparision
+SET src_dest_match_flg=CASE WHEN src_tablename=dest_tablename THEN 1 ELSE 0 END
+WHERE src_dest_match_flg IS NULL
+END
+
+--SELECT * FROM DatabaseDataControl.SchemaComparision
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[GetNextControlLoadQueueRow]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/*************************************************************************************************************
+Author:			Paul W Nolan
+Create date:	03/16/2016
+Description:	Gets Next ControlLoadQueue Row
+
+Change Log:
+Date			Modified By		Notes
+--------------------------------------------------------------------------------------------------------------
+03/16/2016		PWN				Created
+**************************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[GetNextControlLoadQueueRow]
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+DECLARE @Records TABLE(TableControlID int,DestinationFullQual varchar(512),BCP_OUT varchar(8000),SQL_IN varchar(8000),[Filename] varchar(256),HasDependency int)
+
+BEGIN
+UPDATE TOP (1) DatabaseDataControl.ControlLoadQueue
+SET Stage=2
+OUTPUT inserted.TableControlID,inserted.DestinationFullQual,inserted.BCP_OUT,inserted.SQL_IN,inserted.[Filename],inserted.[HasDependency]
+INTO @Records
+WHERE Stage=1
+--ORDER BY HasDependency,TableControlID
+
+IF @@ROWCOUNT=0
+BEGIN
+	SELECT -1 TableControlID,'' DestinationFullQual,'' BCP_OUT, '' SQL_IN,'' [Filename],0 HasDependency
+END
+ELSE
+BEGIN
+	SELECT TableControlID,DestinationFullQual,BCP_OUT,SQL_IN,[Filename],HasDependency FROM @Records
+END
+END
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[InsertControlLoadHistoryLogRows]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+/******************************************************************************************************
+Created By:		Paul W Nolan
+Original Date:	03/16/2016
+Description:	Inserts Queue Rows to DatabaseDataControl.ControlLoadHistoryLog Table in order to preserve
+				load history
+
+Modification Log:
+Date				Modified By				Comment
+-------------------------------------------------------------------------------------------------------
+03/16/2016			PWN						Created
+*******************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[InsertControlLoadHistoryLogRows]
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+----------TRUNCATE TABLE DatabaseDataControl.ControlLoadHistoryLog
+
+DECLARE @ControlLoadID int
+SELECT @ControlLoadID = COALESCE(MAX(ControlLoadID),1)+1 FROM DatabaseDataControl.ControlLoadHistoryLog WITH(nolock)
+----SELECT @ControlLoadID
+
+IF EXISTS (SELECT TOP 1 1 FROM DatabaseDataControl.ControlLoadQueue WITH(nolock))
+BEGIN
+INSERT INTO DatabaseDataControl.ControlLoadHistoryLog(ControlLoadID,TableControlID,SourceFullQual,DestinationFullQual,Stage,BCP_OUTBeginTime,BCP_OUTEndTime
+,SQL_INBeginTime,SQL_INEndTime,LoadEndTime,CurrentSourceRowCount,CurrentDestinationRowCount,ExportDurationMinutes,InsertDurationMinutes,TotalLoadDurationMinutes)
+SELECT @ControlLoadID
+,c.TableControlID
+,c.SourceFullQual
+,c.DestinationFullQual
+,Stage
+,BCP_OUTBeginTime
+,BCP_OUTEndTime
+,SQL_INBeginTime
+,SQL_INEndTime
+,LoadEndTime
+,r.CurrentSourceRowCount
+,r.CurrentDestinationRowCount
+,DATEDIFF(minute,BCP_OUTBeginTime,COALESCE(BCP_OUTEndTime,GETDATE())) ExportDurationMinutes
+,DATEDIFF(minute,SQL_INBeginTime,COALESCE(SQL_INEndTime,GETDATE())) InsertDurationMinutes
+,DATEDIFF(minute,BCP_OUTBeginTime,COALESCE(LoadEndTime,GETDATE())) TotalLoadDurationMinutes
+FROM DatabaseDataControl.ControlLoadQueue c WITH(nolock)
+JOIN DatabaseDataControl.RowCountComparision r WITH(nolock) ON c.TableControlID=r.TableControlID
+ORDER BY c.TableControlID
+END
+
+--SELECT * FROM DatabaseDataControl.ControlLoadHistoryLog
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[UpdateControlLoadQueueStatus]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*************************************************************************************************************
+Author:			Paul W Nolan
+Create date:	03/16/2016
+Description:	Updates ControlLoadQueue LoadStatus
+				TARGET: DatabaseDataControl.ControlLoadQueue
+
+Change Log:
+Date			Modified By		Notes
+--------------------------------------------------------------------------------------------------------------
+03/16/2016		PWN				Created
+**************************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[UpdateControlLoadQueueStatus]
+@TableControlID int
+,@Stage varchar(50)
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+IF @Stage=2
+BEGIN
+UPDATE DatabaseDataControl.ControlLoadQueue
+SET Stage=@Stage
+,BCP_OUTBeginTime=GETDATE()
+WHERE TableControlID=@TableControlID
+END
+
+IF @Stage=3
+BEGIN
+UPDATE DatabaseDataControl.ControlLoadQueue
+SET Stage=@Stage
+,BCP_OUTEndTime=GETDATE()
+--,BCP_INBeginTime=GETDATE()
+,SQL_INBeginTime=GETDATE()
+WHERE TableControlID=@TableControlID
+END
+
+IF @Stage=4
+BEGIN
+UPDATE DatabaseDataControl.ControlLoadQueue
+SET Stage=@Stage
+--,BCP_INEndTime=GETDATE()
+,SQL_INEndTime=GETDATE()
+,LoadEndTime=GETDATE()
+WHERE TableControlID=@TableControlID
+END
+
+IF @Stage=0
+BEGIN
+UPDATE DatabaseDataControl.ControlLoadQueue
+SET Stage=0
+,LoadEndTime=GETDATE()
+WHERE TableControlID=@TableControlID
+END
+
+GO
+/****** Object:  StoredProcedure [DatabaseDataControl].[UpdateDerivedColumns]    Script Date: 1/17/2023 1:55:21 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/******************************************************************************************************
+Created By:		Paul W Nolan
+Original Date:	03/16/2016
+Description:	Parses XML Data and in order to populate MCC and NetworkReferenceID in dbo.TxnAddenda
+				Populates Derived columns DW tables
+				TARGETS: dbo.TxnAddenda
+				dbo.NACHAFileHeader--HARDCODED JOIN SINCE TARGET COLUMNS NOT IN DW TARGET
+				dbo.ReturnedTxnEvent
+				dbo.TierSettlementRollup
+				dbo.TxnAuth
+				dbo.TxnCardData
+				dbo.TxnChargebackSettlement
+				dbo.TxnDetail
+				dbo.TxnHeader
+				dbo.TxnMCCorporateLineItem
+				dbo.TxnMessageVisa
+				dbo.TxnReclassMC
+				dbo.TxnReclassVisa
+				dbo.TxnRecurringFee
+				dbo.TxnRecurringFeeSettlementBatchRollup
+				dbo.TxnSettlementBatchRollup
+
+Modification Log:
+Date				Modified By				Comment
+-------------------------------------------------------------------------------------------------------
+03/16/2016			PWN						Created
+04/13/2020			PWN						Added ProviderTxn
+*******************************************************************************************************/
+CREATE PROCEDURE [DatabaseDataControl].[UpdateDerivedColumns]
+@DestinationFullQual varchar(512)
+AS
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+SET NOCOUNT ON
+
+--DECLARE @DestinationFullQual varchar(512)='HALNLEVSQLD01.PassportDW.DBO.TXNHEADER'
+
+DECLARE @DestinationFullQualTrim varchar(512)
+DECLARE @StartPos int,@Len int
+SELECT @Len=LEN(@DestinationFullQual)+1
+
+SELECT @StartPos=CHARINDEX('.', @DestinationFullQual);
+SELECT @DestinationFullQualTrim=SUBSTRING(@DestinationFullQual,@StartPos+1,@Len-@StartPos)
+--SELECT @DestinationFullQualTrim
+
+BEGIN
+--TxnAddenda
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnAddenda'
+			BEGIN
+			IF OBJECT_ID('tempdb..#tmpTxnAddenda') IS NOT NULL DROP TABLE #tmpTxnAddenda;
+			IF OBJECT_ID('tempdb..#tmpTxnAddendaDEL') IS NOT NULL DROP TABLE #tmpTxnAddendaDEL;
+			SELECT DISTINCT TxnUUID INTO #tmpTxnAddenda FROM PassportDW.dbo.TxnAddenda WITH(nolock)
+
+				WHILE EXISTS(SELECT TOP 1 1 FROM #tmpTxnAddenda)
+				BEGIN
+				SELECT TOP 1000 TxnUUID INTO #tmpTxnAddendaDEL FROM #tmpTxnAddenda
+
+				UPDATE PassportDW.dbo.TxnAddenda
+				SET MCC = COALESCE(XML.value('(/Addenda/VisaBasic/@MCC) [1]', 'varchar(50)'), XML.value('(/Addenda/MCBasic/@MCC) [1]', 'varchar(50)'), XML.value('(/Addenda/DiscoverTxn/@MCCID) [1]', 'varchar(50)'), XML.value('(/Addenda/DiscoverTxn/@MCC) [1]', 'varchar(50)'))
+				,NetworkReferenceID = COALESCE(XML.value('(/Addenda/DiscoverTxn/@NetworkReferenceID) [1]', 'varchar(50)'), SPACE(50))
+				FROM PassportDW.dbo.TxnAddenda a WITH(nolock)
+				JOIN #tmpTxnAddendaDEL d on a.TxnUUID=d.TxnUUID
+
+				DELETE FROM #tmpTxnAddenda WHERE TxnUUID IN (SELECT TxnUUID FROM #tmpTxnAddendaDEL)
+				DROP TABLE #tmpTxnAddendaDEL
+				END
+			END
+--NACHAFileHeader
+		IF @DestinationFullQualTrim='PassportDW.DBO.NACHAFileHeader'
+			BEGIN 
+			UPDATE PassportDW.dbo.NACHAFileHeader
+			SET FileCreationDateID=CONVERT(int,'20'+p.FileCreationDate)
+			,FileCreationTimeID=CONVERT(int,(convert(int,substring(p.FileCreationTime,1,2))*3600)+(convert(int,substring(p.FileCreationTime,3,2))*60))
+			,FundingDateID=ISNULL(p.FundingDateID,convert(int,'20'+p.FileCreationDate))
+			FROM PassportDW.dbo.NACHAFileHeader dw WITH(nolock)
+			JOIN EHPSALNDBT15.ETEPassport.dbo.NACHAFileHeader p WITH(nolock) on dw.NACHAFileHeaderID=p.NACHAFileHeaderID
+			END
+--ReturnedTxnEvent
+		IF @DestinationFullQualTrim='PassportDW.DBO.ReturnedTxnEvent'
+			BEGIN 
+			UPDATE PassportDW.dbo.ReturnedTxnEvent
+			SET OriginalTxnDateUTCID=convert(int,convert(varchar(8),OriginalTxnDateUTC,112))
+			,WorkedDateUTCID=convert(int,convert(varchar(8),WorkedDateUTC,112))
+			FROM PassportDW.dbo.ReturnedTxnEvent WITH(nolock)
+			END
+--TierSettlementRollup
+		IF @DestinationFullQualTrim='PassportDW.DBO.TierSettlementRollup'
+			BEGIN 
+			UPDATE PassportDW.dbo.TierSettlementRollup
+			SET SettlementDateUTCID=convert(int, convert(varchar(8),SettlementDateUTC,112))
+			FROM PassportDW.dbo.TierSettlementRollup WITH(nolock)
+			END
+--TxnAuth
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnAuth'
+			BEGIN
+			IF OBJECT_ID('tempdb..#tmpTxnAuth') IS NOT NULL DROP TABLE #tmpTxnAuth;
+			IF OBJECT_ID('tempdb..#tmpTxnAuthDEL') IS NOT NULL DROP TABLE #tmpTxnAuthDEL;
+			SELECT DISTINCT TxnUUID INTO #tmpTxnAuth FROM PassportDW.dbo.TxnAuth WITH(nolock)
+
+				WHILE EXISTS(SELECT TOP 1 1 FROM #tmpTxnAuth)
+				BEGIN
+				SELECT TOP 1000 TxnUUID INTO #tmpTxnAuthDEL FROM #tmpTxnAuth
+				 
+				UPDATE PassportDW.dbo.TxnAuth
+				SET AuthDateUTCID=convert(int,convert(varchar(8),AuthDateUTC,112))
+				FROM PassportDW.dbo.TxnAuth a WITH(nolock)
+				JOIN #tmpTxnAuthDEL d on a.TxnUUID=d.TxnUUID
+
+				DELETE FROM #tmpTxnAuth WHERE TxnUUID IN (SELECT TxnUUID FROM #tmpTxnAuthDEL)
+				DROP TABLE #tmpTxnAuthDEL
+				END
+			END
+--TxnCardData
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnCardData'
+			BEGIN
+			IF OBJECT_ID('tempdb..#tmpTxnCardData') IS NOT NULL DROP TABLE #tmpTxnCardData;
+			IF OBJECT_ID('tempdb..#tmpTxnCardDataDEL') IS NOT NULL DROP TABLE #tmpTxnCardDataDEL;
+			SELECT DISTINCT TxnUUID INTO #tmpTxnCardData FROM PassportDW.dbo.TxnCardData WITH(nolock)
+
+				WHILE EXISTS(SELECT TOP 1 1 FROM #tmpTxnCardData)
+				BEGIN
+				SELECT TOP 1000 TxnUUID INTO #tmpTxnCardDataDEL FROM #tmpTxnCardData
+				  
+				UPDATE PassportDW.dbo.TxnCardData
+				SET ExpDateID=convert(int,convert(varchar(8),ExpDate,112))
+				FROM PassportDW.dbo.TxnCardData a WITH(nolock)
+				JOIN #tmpTxnCardDataDEL d on a.TxnUUID=d.TxnUUID
+
+				DELETE FROM #tmpTxnCardData WHERE TxnUUID IN (SELECT TxnUUID FROM #tmpTxnCardDataDEL)
+				DROP TABLE #tmpTxnCardDataDEL
+				END
+			END
+--TxnChargebackSettlement
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnChargebackSettlement'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnChargebackSettlement
+			SET SettlementDateUTCID=convert(int,convert(varchar(8),SettlementDateUTC,112))
+			FROM PassportDW.dbo.TxnChargebackSettlement WITH(nolock)
+			END
+--TxnDetail
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnDetail'
+			BEGIN
+			IF OBJECT_ID('tempdb..#tmpTxnDetail') IS NOT NULL DROP TABLE #tmpTxnDetail;
+			IF OBJECT_ID('tempdb..#tmpTxnDetailDEL') IS NOT NULL DROP TABLE #tmpTxnDetailDEL;
+			SELECT DISTINCT TxnUUID INTO #tmpTxnDetail FROM PassportDW.dbo.TxnDetail WITH(nolock)
+
+				WHILE EXISTS(SELECT TOP 1 1 FROM #tmpTxnDetail)
+				BEGIN
+				SELECT TOP 1000 TxnUUID INTO #tmpTxnDetailDEL FROM #tmpTxnDetail
+				  
+				UPDATE PassportDW.dbo.TxnDetail
+				SET TxnDateUTCID=convert(int,convert(varchar(8),TxnDateUTC,112))
+				FROM PassportDW.dbo.TxnDetail a WITH(nolock)
+				JOIN #tmpTxnDetailDEL d on a.TxnUUID=d.TxnUUID
+
+				DELETE FROM #tmpTxnDetail WHERE TxnUUID IN (SELECT TxnUUID FROM #tmpTxnDetailDEL)
+				DROP TABLE #tmpTxnDetailDEL
+				END
+			END
+--TxnHeader
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnHeader'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnHeader
+			SET CloseDateUTCID=convert(int,convert(varchar(8),CloseDateUTC,112))
+			--,BusinessDateUTCID=convert(int,convert(varchar(8),BusinessDateUTC,112))
+			FROM PassportDW.dbo.TxnHeader WITH(nolock)
+			END
+--TxnMCCorporateLineItem
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnMCCorporateLineItem'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnMCCorporateLineItem
+			SET LineItemDateID=convert(int,convert(varchar(8),LineItemDate,112))
+			FROM PassportDW.dbo.TxnMCCorporateLineItem WITH(nolock)
+			END
+--TxnMessageVisa
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnMessageVisa'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnMessageVisa
+			SET CentralProcessingDateID=convert(int,convert(varchar(8),CentralProcessingDate,112))
+			FROM PassportDW.dbo.TxnMessageVisa WITH(nolock)
+			END
+--TxnReclassMC
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnReclassMC'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnReclassMC
+			SET AuthTxnDateID=convert(int,convert(varchar(8),dateadd(d,convert(int,substring(AuthTxnDate,3,3))-1,convert(datetime,'1/1/'+substring(AuthTxnDate,1,2))),112))
+			,AuthTxnTimeID=convert(int,(convert(int,substring(AuthTxnTime,1,2))*3600)+(convert(int,substring(AuthTxnTime,3,2))*60)+convert(int,substring(AuthTxnTime,1,2)))
+			,TxnSubmittedDateID=convert(int,convert(varchar(8),TxnSubmittedDate,112))
+			FROM PassportDW.dbo.TxnReclassMC WITH(nolock)
+			END
+--TxnReclassVisa
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnReclassVisa'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnReclassVisa
+			SET SourceBatchDateID=convert(int,convert(varchar(8),dateadd(d,convert(int,substring(SourceBatchDate,3,3))-1,convert(datetime,'1/1/'+substring(SourceBatchDate,1,2))),112))
+			FROM PassportDW.dbo.TxnReclassVisa WITH(nolock)
+			END
+--TxnRecurringFee
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnRecurringFee'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnRecurringFee
+			SET AnticipatedSettlementDateUTCID=convert(int,convert(varchar(8),AnticipatedSettlementDateUTC,112))
+			FROM PassportDW.dbo.TxnRecurringFee WITH(nolock)
+			END
+--TxnRecurringFeeSettlementBatchRollup
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnRecurringFeeSettlementBatchRollup'
+			BEGIN 
+			UPDATE PassportDW.dbo.TxnRecurringFeeSettlementBatchRollup
+			SET SettlementDateUTCID=convert(int,convert(varchar(8),SettlementDateUTC,112))
+			FROM PassportDW.dbo.TxnRecurringFeeSettlementBatchRollup WITH(nolock)
+			END
+--TxnSettlementBatchRollup
+		IF @DestinationFullQualTrim='PassportDW.DBO.TxnSettlementBatchRollup'
+			BEGIN
+			IF OBJECT_ID('tempdb..#tmpTxnSettlementBatchRollup') IS NOT NULL DROP TABLE #tmpTxnSettlementBatchRollup;
+			IF OBJECT_ID('tempdb..#tmpTxnSettlementBatchRollupDEL') IS NOT NULL DROP TABLE #tmpTxnSettlementBatchRollupDEL;
+			SELECT DISTINCT TxnUUID INTO #tmpTxnSettlementBatchRollup FROM PassportDW.dbo.TxnSettlementBatchRollup WITH(nolock)
+
+				WHILE EXISTS(SELECT TOP 1 1 FROM #tmpTxnSettlementBatchRollup)
+				BEGIN
+				SELECT TOP 1000 TxnUUID INTO #tmpTxnSettlementBatchRollupDEL FROM #tmpTxnSettlementBatchRollup
+				  
+				UPDATE PassportDW.dbo.TxnSettlementBatchRollup
+				SET SettlementDateUTCID=convert(int,convert(varchar(8),SettlementDateUTC,112))
+				FROM PassportDW.dbo.TxnSettlementBatchRollup a WITH(nolock)
+				JOIN #tmpTxnSettlementBatchRollupDEL d on a.TxnUUID=d.TxnUUID
+
+				DELETE FROM #tmpTxnSettlementBatchRollup WHERE TxnUUID IN (SELECT TxnUUID FROM #tmpTxnSettlementBatchRollupDEL)
+				DROP TABLE #tmpTxnSettlementBatchRollupDEL
+				END
+			END
+--ProviderTxn
+		IF @DestinationFullQualTrim='PassportDW.DBO.ProviderTxn'
+			BEGIN
+			UPDATE PassportDW.DBO.ProviderTxn
+			SET CardNumberFirst6=SUBSTRING(CardNumberMasked,1,6) 
+			,CardNumberLast4=SUBSTRING(CardNumberMasked,DATALENGTH(CardNumberMasked)-3,4) 
+			END
+END
+GO

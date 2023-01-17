@@ -1,0 +1,44 @@
+USE [ConcurrencyTest]
+GO
+SELECT * FROM JEF11
+SELECT * FROM AMEX
+SELECT * FROM DB02
+/****** Script for SelectTopNRows command from SSMS  ******/
+SELECT TOP (1000) *  FROM [ConcurrencyTest].[dbo].[DataTransfer_Config]
+
+--EXEC [ConcurrencyTest].[dbo].[GetTableLoadId_GenNext]
+ALTER TABLE [ConcurrencyTest].[dbo].[DataTransfer_Config] ADD LoadedRowCount BIGINT
+--UPDATE [ConcurrencyTest].[dbo].[DataTransfer_Config] SET LoadStatus = 'PENDING' WHERE  TableLoadId != 3
+--DELETE FROM [ConcurrencyTest].[dbo].[DataTransfer_Config] WHERE  TableLoadId = 4
+SELECT COUNT(*) FROM HPSMaster.dbo.ProviderDenial --6095
+SELECT COUNT(*) FROM HPSMaster.dbo.notes --2006137
+SELECT COUNT(*) FROM JVLDB06.PinDebit.dbo.notes
+SELECT * FROM JVLDB06.PinDebit.dbo.notes
+
+EXEC ConcurrencyTest.dbo.SP_DynamicDataLoad_Generic 1, 'JVLDB06', 'PinDebit', 'dbo', 'ProviderDenial', 'HALNLEVSQLD01', 'HPSMaster', 'dbo', 'ProviderDenial', 'Upsert' 
+
+/*
+INSERT INTO [ConcurrencyTest].[dbo].[DataTransfer_Config] (
+SourceServerName
+,SourceDBName
+,SourceSchemaName
+,SourceTableName
+,TargetServerName
+,TargetDBName
+,TargetSchemaName
+,TargetTableName
+,LoadType
+,LoadFrequency
+,LoadStatus)
+SELECT 'JVLDB06','Pindebit','dbo',SUBSTRING([Source Table Name],5,LEN([Source Table Name])),
+'HALNLEVSQLD01',[Target Database Name],'dbo',SUBSTRING([Target Table Name],5,LEN([Target Table Name]))
+,StoredProcedure,[Load Frequency],'PENDING' FROM AMEX
+
+*/
+
+/*
+ERROR_Msg
+TABLE NAME - platforms
+Error: The MERGE statement conflicted with the REFERENCE constraint "FK_dbo.AcqBankLogo_dbo.Platforms_PlatformID". The conflict occurred in database "HPSMaster", table "dbo.AcqBankLogo", column 'PlatformID'.
+Error: The MERGE statement conflicted with the FOREIGN KEY constraint "FK_dbo.AcqBankLogo_dbo.Platforms_PlatformID". The conflict occurred in database "HPSMaster", table "dbo.Platforms", column 'PlatformID'.
+*/

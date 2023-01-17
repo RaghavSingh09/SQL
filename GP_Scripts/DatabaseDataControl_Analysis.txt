@@ -1,0 +1,63 @@
+SELECT * FROM INFORMATION_SCHEMA.TABLES 
+WHERE TABLE_NAME NOT LIKE '%bak%' AND TABLE_NAME NOT LIKE '%bkup%'  AND TABLE_NAME NOT LIKE '%back%' 
+
+SELECT TOP 100 * FROM DatabaseDataControl.SchemaComparision
+SELECT TOP 100 * FROM DatabaseDataControl.RowCountComparision
+SELECT TOP 100 * FROM DatabaseDataControl.ControlLoadQueue
+SELECT TOP 100 * FROM DatabaseDataControl.TableControl
+SELECT TOP 100 * FROM DatabaseDataControl.ControlLoadHistoryLog
+
+SELECT * FROM INFORMATION_SCHEMA.ROUTINES 
+WHERE ROUTINE_NAME NOT LIKE '%bak%' AND ROUTINE_NAME NOT LIKE '%bkup%'  AND ROUTINE_NAME NOT LIKE '%back%' 
+ORDER BY CREATED
+/*
+DatabaseDataControl.GenerateSchemaComparision
+DatabaseDataControl.GenerateControlLoadQueue
+DatabaseDataControl.GenerateRowCountComparision
+DatabaseDataControl.UpdateDerivedColumns
+DatabaseDataControl.UpdateControlLoadQueueStatus
+DatabaseDataControl.ExecuteBulkInsertStatement
+DatabaseDataControl.GetNextControlLoadQueueRow
+DatabaseDataControl.InsertControlLoadHistoryLogRows
+*/
+
+INSERT INTO AbiToSSIS.DataTransfer_Config(SourceServerName,SourceDBName,SourceSchemaName,SourceTableName,TargetServerName,TargetDBName,TargetSchemaName,TargetTableName)
+VALUES
+('EHPSALNDWP01SQL','Kayak','DBO','KAYAKLOADSTATUS','HALNLEVSQLD01','ConcurrencyTest','DBO','KAYAKLOADSTATUS')
+
+
+DECLARE @Sourceservername nvarchar(20) = 'HALNLEVSQLD01', @Sourcedatabasename VARCHAR(20) = 'ConcurrencyTest'
+DECLARE @SourceStatement1 nvarchar(200)='SELECT NULL as tablecontrolid,'+''''+@Sourceservername+''''+' as servername,'''+@Sourcedatabasename+''' as databasename'
+,@SourceStatement2 nvarchar(200)=',[schema],tablename,column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale '
+,@SourceStatement3 nvarchar(200)='FROM OPENQUERY('+@Sourceservername+',''SELECT CAST(UPPER(s.name) AS VARCHAR(128)) [schema],CAST(UPPER(ts.name) AS VARCHAR(128)) tablename,c.column_id'
+,@SourceStatement4 nvarchar(200)=',CAST(UPPER(c.name) AS VARCHAR(128)) column_name,CAST(t.name AS VARCHAR(50)) datatypename,t.is_user_defined,t.is_assembly_type,c.is_nullable,c.max_length,c.[precision],c.scale '
+,@SourceStatement5 nvarchar(200)='FROM '+''+@Sourcedatabasename+''+'.sys.columns c with(nolock)'
+,@SourceStatement6 nvarchar(200)=' JOIN '+''+@Sourcedatabasename+''+'.sys.types t with(nolock) on c.user_type_id=t.user_type_id'
+,@SourceStatement7 nvarchar(200)=' JOIN '+''+@Sourcedatabasename+''+'.sys.tables ts with(nolock) on ts.object_id=c.object_id'
+,@SourceStatement8 nvarchar(200)=' JOIN '+''+@Sourcedatabasename+''+'.sys.schemas s with(nolock) on s.schema_id=ts.schema_id'+''')'
+DECLARE @SourceSQL nvarchar(4000)=@SourceStatement1+@SourceStatement2+@SourceStatement3+@SourceStatement4+@SourceStatement5+@SourceStatement6+@SourceStatement7+@SourceStatement8
+
+EXEC sp_executesql @SourceSQL;
+
+
+/*BCP OUT*/
+"SELECT [MERCHANTSEQUENCEKEY],[ACHFILEGROUP] FROM EHPSALNDBT15.ETEPassport.dbo.ACHFILEGROUP WITH(nolock);" 
+queryout \\HALNLEVSQLD01\H$\MSSQL\DatabaseDataControl\HALNLEVSQLD01.PassportDW.dbo.ACHFILEGROUP.dat 
+-c -T -b10000 -e \\HALNLEVSQLD01\H$\MSSQL\DatabaseDataControl\HALNLEVSQLD01.PassportDW.dbo.ACHFILEGROUP.dat_errorOUT.dat
+
+"SELECT  [TXNUUID],[TXNDETAILID],[DATEADDEDUTC],[DATEADDEDTIMEZONEID],[ADDENDABITMAP],CAST([XML] as XML) AS [XML],[ETLBATCHID],[ETLUPDATEBATCHID],[MCC],[NETWORKREFERENCEID] FROM OPENQUERY(EHPSALNDBT15,'SELECT  [TXNUUID],[TXNDETAILID],[DATEADDEDUTC],[DATEADDEDTIMEZONEID],[ADDENDABITMAP],CAST([XML] as VARCHAR(MAX)) AS [XML],0 AS ETLBATCHID,0 AS ETLUPDATEBATCHID,CAST(0 as VARCHAR) AS [MCC],CAST(0 as VARCHAR) AS [NETWORKREFERENCEID] FROM QA4PASSPORT.dbo.TXNADDENDA WITH(nolock)');" 
+queryout \\HALNLEVSQLD01\H$\MSSQL\DatabaseDataControl\HALNLEVSQLD01.PassportDW.dbo.TXNADDENDA.dat 
+-c -T -b10000 -e\\HALNLEVSQLD01\H$\MSSQL\DatabaseDataControl\HALNLEVSQLD01.PassportDW.dbo.TXNADDENDA.dat_errorOUT.dat
+
+/*BCP IN*/
+PassportDW.dbo.ACHFILEGROUP in \\HALNLEVSQLD01\H$\MSSQL\DatabaseDataControl\HALNLEVSQLD01.PassportDW.dbo.ACHFILEGROUP.dat 
+-T -c -b10000 -S HALNLEVSQLD01 -e \\HALNLEVSQLD01\H$\MSSQL\DatabaseDataControl\HALNLEVSQLD01.PassportDW.dbo.ACHFILEGROUP.dat_errorIN.dat
+
+SELECT * FROM [ConcurrencyTest].[AbiToSSIS].[DataTransfer_Config]
+
+SELECT COUNT(*) FROM EHPSALNDWP01SQL.Kayak.DBO.KAYAKLOADSTATUS WITH (nolock)
+SELECT COUNT(*) FROM HALNLEVSQLD01.ConcurrencyTest.ABITest.KAYAKLOADSTATUS
+
+EXEC [AbiToSSIS].[SP_DataTransferToTables_BCP_Test] 1
+
+"C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\110\Tools\Binn\bcp.exe" "SELECT [ETLBATCHID],[QUEUENAME],[FILESPECID],[STARTDATEID],[ENDDATEID],[LOADSTATUS],[LOADSTART],[LOADEND],[ROWCOUNT],[INBALANCE],[FILETYPENAME],[EXECUTIONID] FROM EHPSALNDWP01SQL.Kayak.DBO.KAYAKLOADSTATUS" queryout \\hps.com\plano\HomeDrive1$\Raghavendra.Kumar$\AbiToSSIS_Files\BCP_Files\HALNLEVSQLD01.ConcurrencyTest.ABITest.KAYAKLOADSTATUS.dat -c -T -b10000 -S EHPSALNDWP01SQL -e \\hps.com\plano\HomeDrive1$\Raghavendra.Kumar$\AbiToSSIS_Files\BCP_Files\HALNLEVSQLD01.ConcurrencyTest.ABITest.KAYAKLOADSTATUS.dat_errorOUT.dat

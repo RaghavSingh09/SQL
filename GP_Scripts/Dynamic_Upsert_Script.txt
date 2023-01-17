@@ -1,0 +1,127 @@
+ALTER PROCEDURE SP_DynamicDataLoad
+@TableLoadID INT
+,@source_server NVARCHAR(128)
+,@source_database NVARCHAR(128)
+,@source_tableschema NVARCHAR(128)
+,@source_tablename NVARCHAR(128)
+,@destination_server NVARCHAR(128)
+,@destination_database NVARCHAR(128)
+,@destination_tableschema NVARCHAR(128)
+,@destination_tablename NVARCHAR(128)
+,@LoadType VARCHAR(10)
+AS
+BEGIN
+/*
+USE HPSMaster
+go
+EXEC ConcurrencyTest.dbo.SP_DynamicDataLoad 1, 'JVLDB06', 'PinDebit', 'dbo', 'ProviderDenial', 'HALNLEVSQLD01', 'HPSMaster', 'dbo', 'ProviderDenial', 'Upsert' 
+
+DECLARE @source_tablename NVARCHAR(128)='ProviderDenial'
+DECLARE @destination_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+,@destination_tablename NVARCHAR(128)='[' + @source_tablename + ']'
+,@destination_database NVARCHAR(128)='[' + 'HPSMaster' + ']'
+,@source_server NVARCHAR(128)='[' + 'JVLDB06' + ']'
+,@source_database NVARCHAR(128)='[' + 'PinDebit' + ']'
+,@source_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+*/
+
+DECLARE @_vDynSQL NVARCHAR(MAX)='', @_vDynSQLFinal NVARCHAR(MAX)='', @_vIsData INT
+
+SET @_vDynSQL = 'SELECT @_vIsData = objectproperty(object_id('''+@source_tablename+'''), ''TableHasIdentity'')'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+
+SET NOCOUNT ON; 
+
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal = ' SET IDENTITY_INSERT [dbo].[' + @source_tablename + '] ON;
+    '
+
+DECLARE @sql VARCHAR(MAX) = ''
+DECLARE @list VARCHAR(MAX) = '';
+
+SELECT @list = @list + [name] +', '
+FROM SYS.COLUMNS
+WHERE OBJECT_ID = OBJECT_ID(@source_tablename)
+
+SET @_vDynSQLFinal += 'MERGE ' + @destination_tableschema + '.' + @destination_tablename + ' AS t '
+				+'USING (SELECT ' + SUBSTRING(RTRIM(@list),1,LEN(RTRIM(@list))-1) + '  
+				  FROM ' + @source_server + '.' + @source_database + '.' + @source_tableschema + '.' + @destination_tablename + ' WITH(NOLOCK)) AS s '
+
+-- Get the join columns ----------------------------------------------------------
+SET @list = ''
+SELECT     @list = @list + ' t.[' + c.COLUMN_NAME + '] = s.[' +  c.COLUMN_NAME + '] AND '
+FROM     INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+    INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+WHERE     pk.TABLE_NAME = @source_tablename
+AND    CONSTRAINT_TYPE = 'PRIMARY KEY'
+AND    c.TABLE_NAME = pk.TABLE_NAME
+AND    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME
+
+SELECT @list =  LEFT(@list, LEN(@list) -3)
+SET @_vDynSQLFinal += ' ON ( ' + @list + ')'
+
+
+-- WHEN MATCHED ------------------------------------------------------------------
+SET @_vDynSQLFinal += 'WHEN MATCHED THEN UPDATE SET'
+
+SELECT @list = '';
+SELECT @list = @list + '    [' + [name] +  '] = s.[' + [name] +'],
+'
+from sys.columns
+where object_id = object_id(@source_tablename)
+-- don't update primary keys
+and [name] NOT IN (SELECT  [column_name]
+                    from     INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+                            INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+                    where     pk.TABLE_NAME = @destination_tablename
+                    and    CONSTRAINT_TYPE = 'PRIMARY KEY'
+                    and    c.TABLE_NAME = pk.TABLE_NAME
+                    and    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME)
+-- and don't update identity columns
+and columnproperty(object_id(@source_tablename), [name], 'IsIdentity ') = 0                    
+--print @list                    
+SET @_vDynSQLFinal += LEFT(@list, LEN(@list) -3 )
+
+-- WHEN NOT MATCHED BY TARGET ------------------------------------------------
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY TARGET THEN ';
+
+-- Get the insert list
+SET @list = ''
+
+SELECT @list = @list + ' [' + [name] +'], '
+FROM SYS.COLUMNS
+WHERE OBJECT_ID = OBJECT_ID(@source_tablename)
+
+SELECT @list = LEFT(@list, LEN(@list) - 1)
+
+SET @_vDynSQLFinal += '    INSERT(' + @list + ') '
+
+-- GET THE VALUES LIST
+SET @list = ''
+
+SELECT @list = @list + ' s.[' +[name] +'], '
+FROM SYS.COLUMNS
+WHERE OBJECT_ID = OBJECT_ID(@source_tablename)
+
+SELECT @list = LEFT(@list, LEN(@list) - 1)
+
+SET @_vDynSQLFinal += '    VALUES(' + @list + ') '
+
+-- WHEN NOT MATCHED BY SOURCE
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY SOURCE THEN DELETE; '
+
+-- SET THE IDENTITY INSERT OFF FOR TABLES WITH IDENTITIES
+SET @_vDynSQL = 'SELECT @_vIsData = objectproperty(object_id('''+@source_tablename+'''), ''TableHasIdentity'')'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal += 'SET IDENTITY_INSERT [dbo].[' + @source_tablename + '] OFF;
+    '
+--PRINT @_vDynSQLFinal
+EXECUTE SP_EXECUTESQL @_vDynSQLFinal
+
+UPDATE [ConcurrencyTest].[dbo].[DataTransfer_Config] 
+SET [LoadStatus] = 'Completed' ,[LastUpdated] = GETDATE()
+WHERE [TableLoadID] = @TableLoadID
+
+END

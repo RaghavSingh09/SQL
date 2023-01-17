@@ -1,1 +1,1016 @@
+USE [ConcurrencyTest]
+GO
+/****** Object:  Table [dbo].[DataTransfer_Config]    Script Date: 1/17/2023 1:57:35 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[DataTransfer_Config](
+	[TableLoadId] [int] IDENTITY(1,1) NOT NULL,
+	[SourceServerName] [varchar](500) NULL,
+	[SourceDBName] [varchar](500) NULL,
+	[SourceSchemaName] [varchar](500) NULL,
+	[SourceTableName] [varchar](500) NULL,
+	[TargetServerName] [varchar](500) NULL,
+	[TargetDBName] [varchar](500) NULL,
+	[TargetSchemaName] [varchar](500) NULL,
+	[TargetTableName] [varchar](500) NULL,
+	[LoadType] [varchar](10) NULL,
+	[LoadFrequency] [varchar](10) NULL,
+	[LoadStartTime] [datetime] NULL,
+	[LoadEndTime] [datetime] NULL,
+	[LoadStatus] [varchar](10) NULL,
+	[DateAdded] [datetime] NULL,
+	[IsActive] [bit] NULL,
+	[LoadedRowCount] [bigint] NULL,
+ CONSTRAINT [PK_DataTransfer_Config_TableLoadID] PRIMARY KEY CLUSTERED 
+(
+	[TableLoadId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+ALTER TABLE [dbo].[DataTransfer_Config] ADD  DEFAULT (getdate()) FOR [DateAdded]
+GO
+ALTER TABLE [dbo].[DataTransfer_Config] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+/****** Object:  StoredProcedure [AbiToSSIS].[SP_DataTransferToTables_BCP]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [AbiToSSIS].[SP_DataTransferToTables_BCP]
+(			
+@JobLogId				as bigint
+,@JobId					as int				
+,@BatchId				as int
+)
+AS
+BEGIN
+	SET NOCOUNT ON;
+	
+DECLARE @DBName				    as varchar(8000)	
+DECLARE @SourceDateVariation	as varchar(50)	
+DECLARE @SourceSPName			as varchar(8000)
+DECLARE @SourceSQLStatement	    as nvarchar(MAX)	
+DECLARE @TargetDatabase		    as varchar(50)		
+DECLARE @TargetTableName		as varchar(50)	
+DECLARE @DestDateVariation		as varchar(50)	
+DECLARE @DestFilePath			as varchar(8000)
+DECLARE @DestFilePattern		as varchar(8000)
+DECLARE @DestFileDelimiter		as varchar(100)	
+DECLARE @IncludeHeader			as varchar(3)	
+DECLARE @DestFileExtension		as varchar(8000)
+DECLARE @Server_Name			as VARCHAR(8000)
+DECLARE @TQ						as VARCHAR(10)
+
+
+	DECLARE @TargetProcessingDate				as date
+	
+	DECLARE @SourceDatePatternWithBrackets		as NVARCHAR(100)
+	DECLARE @CalculatedSourceDatePattern		as NVARCHAR(100)
+	
+	DECLARE @DestDatePatternWithBrackets		as NVARCHAR(100)
+	DECLARE @CalculatedDestDatePattern			as NVARCHAR(100)
+
+	DECLARE @DestTimePatternWithBrackets		as NVARCHAR(100)
+	DECLARE @CalculatedDestTimePattern			as NVARCHAR(100)
+	DECLARE @CalculatedVariationAddOrSubtract	as bigint
+
+	DECLARE @SourceFileDate						as VARCHAR(100)
+	DECLARE @DestFileDate						as VARCHAR(100)
+
+	SELECT @Server_Name = @@SERVERNAME
+
+	--Code to get parameter values from util.ExportToFile_Config--
+	SELECT	 
+			 @DBName				=	[DBName]
+			,@SourceDateVariation	=	[SourceDateVariation]
+			,@SourceSPName			=	[SourceSPName]
+			,@SourceSQLStatement	=	[SourceSQLStatement]
+			,@TargetDatabase		=	[TargetDatabase]
+			,@TargetTableName		=	[TargetTableName]
+			,@DestDateVariation		=	[DestDateVariation]
+			,@DestFilePath			=	[DestFilePath]
+			,@DestFilePattern		=	[DestFilePattern]
+			,@DestFileDelimiter		=	[DestFileDelimiter]
+			,@IncludeHeader			=	[IncludeHeader]
+			,@DestFileExtension		=	[DestFileExtension]
+			,@TQ					=	ISNULL([TextQualifier],'')
+
+	FROM	[AbiToSSIS].[DataTransfer_Config]
+	WHERE	jobid = @JobId
+
+
+	--Code to get TargetProcessingDate--
+	--SELECT   @TargetProcessingDate			=	batchparametervalue FROM ETLFRAMEWORK_SERVER.EtlFramework.dbo.batchconfig WHERE batchid = @BatchId and BatchParameterName = 'TargetProcessingDate'
+
+	
+	IF(LEN(@TargetProcessingDate)>0 OR @TargetProcessingDate IS NOT NULL)
+		SET @SourceSQLStatement = REPLACE(@SourceSQLStatement,'<bcdateYYYY-MM-DD>',''''+CAST(@TargetProcessingDate AS VARCHAR(10))+'''')
+	
+	/*BCP Section Starts*/
+	DECLARE @s	AS VARCHAR(8000), @TargetSchema AS VARCHAR(50), @_vIsDataSQL NVARCHAR(MAX)='', @_vIsData INT
+	
+	SET @Server_Name = @@SERVERNAME
+	
+	IF(@TargetTableName IS NOT NULL OR LEN(@TargetTableName)>0)
+	BEGIN
+		SELECT @TargetSchema = LTRIM(RTRIM(LEFT(@TargetTableName,CHARINDEX('.',@TargetTableName)-1)))
+		SELECT @TargetTableName = SUBSTRING(@TargetTableName,CHARINDEX('.',@TargetTableName)+1,LEN(@TargetTableName))
+		
+		--Check Schema
+		SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM '+@TargetDatabase+'.SYS.SCHEMAS S INNER JOIN '+@TargetDatabase+'.SYS.SYSUSERS U ON U.UID = S.PRINCIPAL_ID WHERE S.NAME = '''+@TargetSchema+''''
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+		IF(@_vIsData<=0)
+		BEGIN
+			SET @_vIsDataSQL = 'EXEC '+ QUOTENAME(@TargetDatabase) + '..SP_EXECUTESQL N''CREATE SCHEMA '+@TargetSchema+''''
+			EXECUTE(@_vIsDataSQL)
+		END
+
+		--Check Table
+		SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM '+@TargetDatabase+'.SYS.TABLES WHERE NAME = '''+@TargetTableName+''''
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+		IF(@_vIsData>0)
+		BEGIN
+			SET @_vIsDataSQL = 'EXEC '+ QUOTENAME(@TargetDatabase) + '..SP_EXECUTESQL N''DROP TABLE ['+@TargetSchema+'].['+@TargetTableName+']'''
+			EXECUTE(@_vIsDataSQL)
+		END
+
+		BEGIN
+			SET @_vIsDataSQL = 'EXEC '+ QUOTENAME(@TargetDatabase) + '..SP_EXECUTESQL N'''+REPLACE(REPLACE(@SourceSQLStatement,'--ExportToFileSelect',' INTO ['+@TargetSchema+'].['+@TargetTableName+'] '+CHAR(10)),'''','''''')+CHAR(10)+''''
+			EXECUTE(@_vIsDataSQL)
+		END
+		
+	END
+
+	DECLARE @TempColumnList NVARCHAR(MAX),@ColumnList NVARCHAR(MAX),@columnHeader NVARCHAR(MAX), @TempColumnList_1 VARCHAR(MAX),  @TempColumnList_2 VARCHAR(MAX)
+	DECLARE @MainTable VARCHAR(100)=@TargetDatabase+'.'+@TargetSchema+'.'+@TargetTableName
+	DECLARE @TempTable VARCHAR(100)='##'+@TargetTableName+'_Temp', @TempTable_1 VARCHAR(100)='##'+@TargetTableName+'_Temp_1', @_vRowCount BIGINT
+	
+	--To Get Extracted Row Count
+	SET @_vIsDataSQL = 'SELECT @_vRowCount = COUNT(1) FROM '+@MainTable
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vRowCount BIGINT OUTPUT', @_vRowCount OUTPUT
+	
+	/*
+	UPDATE ETLFRAMEWORK_SERVER.EtlFramework.dbo.JobLog 
+	SET	   ExtractRowCount = @_vRowCount 
+	WHERE  JobLogId = @JobLogId
+	*/	
+
+	--Check If Temp and Temp_1 Tables Exists and Drop Them If Found
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable_1+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable_1+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	IF(UPPER(@IncludeHeader)='YES' AND LEN(ISNULL(@TQ,''))>0)
+	BEGIN
+		--To Create the Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @TempColumnList =  COALESCE(@TempColumnList+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList NVARCHAR(MAX) OUTPUT', @TempColumnList OUTPUT
+		
+		EXEC('CREATE TABLE '+@TempTable+' ( '+@TempColumnList+' )')
+	
+		--To Insert The Data Into The Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @columnHeader = COALESCE(@columnHeader+'','' ,'''')+ '''''''+@TQ+'''''+''+QuoteName(column_name,CHAR(39))+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@columnHeader VARCHAR(MAX) OUTPUT', @columnHeader OUTPUT
+	
+		SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ '''''''+@TQ+'''''+''+''CAST([''+column_name+''] AS VARCHAR(MAX))''+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@ColumnList VARCHAR(MAX) OUTPUT', @ColumnList OUTPUT
+
+		EXEC('INSERT INTO '+ @TempTable + ' SELECT '+ @columnHeader)
+
+		--To Create Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		SET @_vIsDataSQL = 'SELECT @TempColumnList_1 =  COALESCE(@TempColumnList_1+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList_1 VARCHAR(MAX) OUTPUT', @TempColumnList_1 OUTPUT
+		EXEC('CREATE TABLE '+@TempTable_1+' ( '+@TempColumnList_1+' )')
+
+		--To Insert Data Into Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		SET @_vIsDataSQL = 'SELECT @TempColumnList_2 =  COALESCE(@TempColumnList_2+'','' ,'''')+ '''''''+@TQ+'''''+''+''ISNULL(CAST([''+column_name +''] AS VARCHAR(MAX)),'''''''') ''+''+'''''+@TQ+''''' AS [''+column_name+'']''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList_2 NVARCHAR(MAX) OUTPUT', @TempColumnList_2 OUTPUT
+
+		EXEC('INSERT INTO '+@TempTable_1+' SELECT '+@TempColumnList_2+' FROM '+@MainTable)
+
+	END
+	ELSE IF(UPPER(@IncludeHeader) = 'YES' AND LEN(ISNULL(@TQ,''))<=0)
+	BEGIN
+		--To Create the Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @TempColumnList =  COALESCE(@TempColumnList+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList NVARCHAR(MAX) OUTPUT', @TempColumnList OUTPUT
+		
+		EXEC('CREATE TABLE '+@TempTable+' ( '+@TempColumnList+' )')
+		EXEC('CREATE TABLE '+@TempTable_1+' ( '+@TempColumnList+' )')
+	
+		--To Insert The Data Into The Temp Table To Make The ResultSet With Header Row
+		SET @_vIsDataSQL = 'SELECT @columnHeader = COALESCE(@columnHeader+'','' ,'''')+ '''''''+@TQ+'''''+''+QuoteName(column_name,CHAR(39))+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@columnHeader VARCHAR(MAX) OUTPUT', @columnHeader OUTPUT
+
+		SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ ''ISNULL(CAST([''+column_name +''] AS VARCHAR(MAX)),'''''''') AS [''+column_name+'']''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@ColumnList VARCHAR(MAX) OUTPUT', @ColumnList OUTPUT
+	
+		EXEC('INSERT INTO '+@TempTable +' SELECT '+ @columnHeader)
+		EXEC('INSERT INTO '+@TempTable_1+' SELECT '+@ColumnList+ ' FROM '+@MainTable)
+	END
+	ELSE IF(UPPER(@IncludeHeader) = 'NO' AND LEN(ISNULL(@TQ,''))>0)
+	BEGIN
+		--To Create Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		SET @_vIsDataSQL = 'SELECT @TempColumnList_1 =  COALESCE(@TempColumnList_1+'','' ,'''')+ ''[''+column_name +''] VARCHAR(MAX)''+CHAR(10) FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList_1 VARCHAR(MAX) OUTPUT', @TempColumnList_1 OUTPUT
+		EXEC('CREATE TABLE '+@TempTable_1+' ( '+@TempColumnList_1+' )')
+
+		--To Insert Data Into Temp_1 Table For Enclosing Null Values With Text Qualifiers
+		--SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ '''''''+@TQ+'''''+''+''CAST(''+column_name+'' AS VARCHAR(MAX))''+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		SET @_vIsDataSQL = 'SELECT @ColumnList =  COALESCE(@ColumnList+'','' ,'''')+ '''''''+@TQ+'''''+''+''ISNULL(CAST([''+column_name+''] AS VARCHAR(MAX)),'''''''')''+''+'''''+@TQ+''''''' FROM '+@TargetDatabase+'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@TargetTableName+''' AND TABLE_SCHEMA = '''+@TargetSchema+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@ColumnList VARCHAR(MAX) OUTPUT', @ColumnList OUTPUT
+		
+		Exec('INSERT INTO '+@TempTable_1+' SELECT '+@ColumnList+' FROM '+@MainTable)
+	END
+	
+	--Code to perform calculations on all destination parameters--
+
+	SELECT @DestFileDate					=	CASE	WHEN	CHARINDEX('<sysdate', @DestFilePattern, 1) > 1		THEN FORMAT(getdate(), 'yyyyMMdd')
+												WHEN	CHARINDEX('<bcdate', @DestFilePattern, 1) > 1		THEN FORMAT(@TargetProcessingDate, 'yyyyMMdd')
+												ELSE	''
+										END
+	,@DestDatePatternWithBrackets	=	SUBSTRING(@DestFilePattern,CHARINDEX('<', @DestFilePattern, 1),CHARINDEX('>', @DestFilePattern, 1) - CHARINDEX('<', @DestFilePattern, 1) +1)
+	,@DestTimePatternWithBrackets	=	SUBSTRING(@DestFilePattern,charindex('<', @DestFilePattern, (charindex('<', @DestFilePattern, 1))+1),charindex('>', @DestFilePattern, (charindex('>', @DestFilePattern, 1))+1) - charindex('<', @DestFilePattern, (charindex('<', @DestFilePattern, 1))+1) +1)
+	
+	--Code to set DestFiledate based on dest date variation--
+	IF LEN(@DestDateVariation) = 1
+	BEGIN
+	  SET @DestFileDate= @DestFileDate
+	END
+	ELSE IF LEN(@DestDateVariation) > 1 AND CHARINDEX('-', @DestDateVariation,1) > 1 
+	BEGIN
+	  SELECT @CalculatedVariationAddOrSubtract = SUBSTRING(@DestDateVariation, CHARINDEX('-', @DestDateVariation,1), (LEN(@DestDateVariation) - CHARINDEX('-', @DestDateVariation,1)) + 1)
+	  SET @DestFileDate= (SELECT DATEADD(DD,@CalculatedVariationAddOrSubtract,@DestFileDate))
+	END
+	ELSE IF LEN(@DestDateVariation) > 1 AND CHARINDEX('+', @DestDateVariation,1) > 1 
+	BEGIN
+	  SELECT @CalculatedVariationAddOrSubtract = SUBSTRING(@DestDateVariation, CHARINDEX('+', @DestDateVariation,1), (LEN(@DestDateVariation) - CHARINDEX('+', @DestDateVariation,1)) + 1)
+	  SET @DestFileDate = (SELECT DATEADD(DD,@CalculatedVariationAddOrSubtract,@DestFileDate))
+	END
+
+	
+	--Code to caluclate source, dest date and time format--
+	SELECT   @CalculatedDestDatePattern		=	(SELECT [dbo].[ufnGetDifferentDateFormats] (@DestFileDate, REPLACE(REPLACE(REPLACE(REPLACE(@DestDatePatternWithBrackets, '<sysdate', ''), '>', ''), '<bcdate', ''), '>', '')))
+			,@CalculatedDestTimePattern		=	CASE @DestTimePatternWithBrackets WHEN '' THEN ''
+												ELSE (SELECT [dbo].[ufnGetDifferentTimeFormats] (NULL, (SELECT REPLACE(REPLACE(@DestTimePatternWithBrackets, '<timestamp', ''), '>', ''))))
+												END
+
+	--Code to set output parameters--
+	SELECT	@DestFilePattern				=	(SELECT REPLACE(REPLACE(@DestFilePattern, @DestDatePatternWithBrackets, @CalculatedDestDatePattern),@DestTimePatternWithBrackets,@CalculatedDestTimePattern))
+
+	---BCP Export Results of Temp Table to Expected File--
+	
+	IF UPPER(@DestFileExtension) LIKE '%XML%'
+	BEGIN
+		set @s =  'bcp "SELECT * FROM '+@MainTable+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -w -S ' + @Server_Name
+		EXEC xp_cmdshell @s
+	END
+	ELSE
+	BEGIN
+		IF(UPPER(@IncludeHeader) = 'YES' AND LEN(ISNULL(@TQ,''))>0)
+		BEGIN
+			--set @s =  'bcp "SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			set @s =  'bcp "SELECT * FROM '+@TempTable+' UNION ALL SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+		ELSE IF(UPPER(@IncludeHeader) = 'YES' AND LEN(ISNULL(@TQ,''))<=0)
+		BEGIN
+			--set @s =  'bcp "SELECT * FROM '+@TempTable+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			set @s =  'bcp "SELECT * FROM '+@TempTable+' UNION ALL SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+		ELSE IF(UPPER(@IncludeHeader) = 'NO' AND LEN(ISNULL(@TQ,''))>0)
+		BEGIN
+			set @s =  'bcp "SELECT * FROM '+@TempTable_1+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+		ELSE
+		BEGIN
+			set @s =  'bcp "SELECT * FROM '+@MainTable+'" queryout "' + @DestFilePath + @DestFilePattern + @DestFileExtension + '" -T -c -C 65001 -t"' + @DestFileDelimiter + '" -S ' + @Server_Name
+			EXEC xp_cmdshell @s
+		END
+	END
+
+	
+	--To DROP Temp and Temp_1 Tables After BCP Is Done
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM TempDB.SYS.TABLES WHERE NAME = '''+@TempTable_1+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+ QUOTENAME('TempDB') + '..SP_EXECUTESQL N''DROP TABLE '+@TempTable_1+''''
+		EXECUTE(@_vIsDataSQL)
+	END	
+
+	--To Get Inserted Row Count
+	/*
+	UPDATE ETLFRAMEWORK_SERVER.EtlFramework.dbo.JobLog 
+	SET	   InsertRowCount = @_vRowCount 
+	WHERE  JobLogId = @JobLogId
+	*/
+END
+GO
+/****** Object:  StoredProcedure [AbiToSSIS].[SP_DataTransferToTables_BCP_Test]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [AbiToSSIS].[SP_DataTransferToTables_BCP_Test]
+(			
+	@ETLBatchId AS INT
+)
+AS
+BEGIN
+
+DECLARE @vSourceServerName	varchar	(500)
+DECLARE @vSourceDBName		varchar	(500)
+DECLARE @vSourceSchemaName	varchar	(500)
+DECLARE @vSourceTableName	varchar	(500)
+DECLARE @vTargetServerName	varchar	(500)
+DECLARE @vTargetDBName		varchar	(500)
+DECLARE @vTargetSchemaName	varchar	(500)
+DECLARE @vTargetTableName	varchar	(500)
+/*DECLARE @vDestDateVariation	varchar	(50)
+DECLARE @vDestFilePath		varchar	(8000)
+DECLARE @vDestFilePattern	varchar	(8000)
+DECLARE @vDestFileExtension	varchar	(100)
+DECLARE @vTextQualifier		varchar	(10)
+DECLARE @vDestFileDelimiter	varchar	(10)
+DECLARE @vIncludeHeader		char	(1)*/
+DECLARE @vIsActive			bit
+
+SELECT    
+	 @vSourceServerName = [SourceServerName]
+	,@vSourceDBName = [SourceDBName]
+	,@vSourceSchemaName = [SourceSchemaName]
+	,@vSourceTableName = [SourceTableName]
+	,@vTargetServerName = [TargetServerName]
+	,@vTargetDBName = [TargetDBName]
+	,@vTargetSchemaName = [TargetSchemaName]
+	,@vTargetTableName = [TargetTableName]
+	/*,@vDestDateVariation = [DestDateVariation]
+	,@vDestFilePath = [DestFilePath]
+	,@vDestFilePattern = [DestFilePattern]
+	,@vDestFileExtension = [DestFileExtension]
+	,@vTextQualifier = [TextQualifier]
+	,@vDestFileDelimiter = [DestFileDelimiter]
+	,@vIncludeHeader = [IncludeHeader]*/
+	,@vIsActive = [IsActive]
+FROM [ConcurrencyTest].[AbiToSSIS].[DataTransfer_Config] WHERE [TableLoadId] = @ETLBatchId
+
+DECLARE @_vIsDataSQL NVARCHAR(MAX)='', @_vIsData INT
+
+IF(@vIsActive = 1)
+BEGIN
+	/*Check Target Schema*/
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM '+@vTargetServerName+'.'+@vTargetDBName+'.SYS.SCHEMAS S INNER JOIN '+@vTargetDBName+'.SYS.SYSUSERS U ON U.UID = S.PRINCIPAL_ID WHERE S.NAME = '''+@vTargetSchemaName+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData<=0)
+	BEGIN
+		SET @_vIsDataSQL = 'EXEC '+@vTargetServerName +'.'+ QUOTENAME(@vTargetDBName) + '..SP_EXECUTESQL N''CREATE SCHEMA '+@vTargetSchemaName+''''
+		EXECUTE(@_vIsDataSQL)
+	END
+
+	/*Check Taget Table*/
+	SET @_vIsDataSQL = 'SELECT @_vIsData = COUNT(1) FROM '+@vTargetServerName+'.'+@vTargetDBName+'.SYS.TABLES WHERE NAME = '''+@vTargetTableName+''''
+	EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+		
+	IF(@_vIsData>0)
+	BEGIN
+		/*Check Taget Columns*/
+		CREATE TABLE #SourceSchemaResults([schema] varchar(50) NOT NULL,tablename varchar(128) NOT NULL,column_id int NULL,column_name varchar(128) NOT NULL
+		,datatypename varchar(50) NULL,is_user_defined bit NULL,is_assembly_type bit NULL,is_nullable bit NULL,max_length int NULL,[precision] int NULL,scale int NULL)
+
+		DECLARE @SourceStatement1 nvarchar(200)=''--'SELECT NULL as tablecontrolid,'+''''+@vSourceServerName+''''+' as servername,'''+@vSourceDBName+''' as databasename'
+		,@SourceStatement2 nvarchar(200)='SELECT [schema],tablename,column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale '
+		,@SourceStatement3 nvarchar(200)='FROM OPENQUERY('+@vSourceServerName+',''SELECT CAST(UPPER(s.name) AS VARCHAR(128)) [schema],CAST(UPPER(ts.name) AS VARCHAR(128)) tablename,c.column_id'
+		,@SourceStatement4 nvarchar(200)=',CAST(UPPER(c.name) AS VARCHAR(128)) column_name,CAST(t.name AS VARCHAR(50)) datatypename,t.is_user_defined,t.is_assembly_type,c.is_nullable,c.max_length,c.[precision],c.scale '
+		,@SourceStatement5 nvarchar(200)='FROM '+''+@vSourceDBName+''+'.sys.columns c with(nolock)'
+		,@SourceStatement6 nvarchar(200)=' JOIN '+''+@vSourceDBName+''+'.sys.types t with(nolock) on c.user_type_id=t.user_type_id'
+		,@SourceStatement7 nvarchar(200)=' JOIN '+''+@vSourceDBName+''+'.sys.tables ts with(nolock) on ts.object_id=c.object_id'
+		,@SourceStatement8 nvarchar(200)=' JOIN '+''+@vSourceDBName+''+'.sys.schemas s with(nolock) on s.schema_id=ts.schema_id WHERE s.name = '+''''''+@vSourceSchemaName+''''''+' AND ts.name = '+''''''+@vSourceTableName+''''''+''')'
+										   
+		DECLARE @SourceSQL nvarchar(4000)=@SourceStatement1+@SourceStatement2+@SourceStatement3+@SourceStatement4+@SourceStatement5+@SourceStatement6+@SourceStatement7+@SourceStatement8
+
+		INSERT INTO #SourceSchemaResults
+		EXEC sp_executesql @SourceSQL;
+
+
+		CREATE TABLE #DestinationSchemaResults([schema] varchar(50) NOT NULL,tablename varchar(128) NOT NULL,column_id int NULL,column_name varchar(128) NOT NULL
+		,datatypename varchar(50) NULL,is_user_defined bit NULL,is_assembly_type bit NULL,is_nullable bit NULL,max_length int NULL,[precision] int NULL,scale int NULL)
+
+		DECLARE @DestinationStatement1 nvarchar(200)=''--'SELECT NULL as tablecontrolid,'+''''+@vTargetServerName+''''+' as servername,'''+@vTargetDBName+''' as databasename'
+		,@DestinationStatement2 nvarchar(200)='SELECT [schema],tablename,column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale '
+		,@DestinationStatement3 nvarchar(200)='FROM OPENQUERY('+@vTargetServerName+',''SELECT CAST(UPPER(s.name) AS VARCHAR(128)) [schema],CAST(UPPER(ts.name) AS VARCHAR(128)) tablename,c.column_id'
+		,@DestinationStatement4 nvarchar(200)=',CAST(UPPER(c.name) AS VARCHAR(128)) column_name,CAST(t.name AS VARCHAR(50)) datatypename,t.is_user_defined,t.is_assembly_type,c.is_nullable,c.max_length,c.[precision],c.scale '
+		,@DestinationStatement5 nvarchar(200)='FROM '+''+@vTargetDBName+''+'.sys.columns c with(nolock)'
+		,@DestinationStatement6 nvarchar(200)=' JOIN '+''+@vTargetDBName+''+'.sys.types t with(nolock) on c.user_type_id=t.user_type_id'
+		,@DestinationStatement7 nvarchar(200)=' JOIN '+''+@vTargetDBName+''+'.sys.tables ts with(nolock) on ts.object_id=c.object_id'
+		,@DestinationStatement8 nvarchar(200)=' JOIN '+''+@vTargetDBName+''+'.sys.schemas s with(nolock) on s.schema_id=ts.schema_id WHERE s.name = '+''''''+@vTargetSchemaName+''''''+' AND ts.name = '+''''''+@vTargetTableName+''''''+''')'
+		DECLARE @DestinationSQL nvarchar(4000)=@DestinationStatement1+@DestinationStatement2+@DestinationStatement3+@DestinationStatement4+@DestinationStatement5+@DestinationStatement6+@DestinationStatement7+@DestinationStatement8
+
+		INSERT INTO #DestinationSchemaResults
+		EXEC sp_executesql @DestinationSQL;
+
+		DECLARE @vColumn_List VARCHAR(MAX)
+		/*Find Mismatched Column or Data type*/
+		SELECT @vColumn_List = 
+		CASE WHEN datatypename IN ('varchar','char','nvarchar') THEN
+		COALESCE(@vColumn_List + ',','')+'CAST(['+ column_name +'] AS '+ datatypename +'('+CAST(max_length AS VARCHAR)+')) AS ['+ column_name +']'
+			 WHEN datatypename IN('smallint','bigint','int','bit','boolean') THEN
+		COALESCE(@vColumn_List + ',','')+'CAST(['+ column_name +'] AS '+ datatypename +') AS ['+ column_name +']'
+		     WHEN datatypename IN('float','double','decimal') THEN
+		COALESCE(@vColumn_List + ',','')+'CAST(['+ column_name +'] AS '+ datatypename +'('+CAST([precision] AS VARCHAR)+','+CAST(ISNULL(scale,0) AS VARCHAR)+')) AS ['+ column_name +']'
+		     ELSE
+		COALESCE(@vColumn_List + ',','')+'CAST(['+ column_name +'] AS '+ datatypename +') AS ['+ column_name +']'
+		END FROM (
+		SELECT column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale FROM #DestinationSchemaResults--#SourceSchemaResults
+		EXCEPT
+		SELECT column_id,column_name,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale FROM #SourceSchemaResults--#DestinationSchemaResults
+		) MisMatched
+
+		/*Find Matching Columns*/
+		SELECT @vColumn_List = COALESCE(@vColumn_List + ',','')+QUOTENAME(D.column_name)
+		--,datatypename,is_user_defined,is_assembly_type,is_nullable,max_length,[precision],scale 
+		FROM #DestinationSchemaResults D INNER JOIN #SourceSchemaResults S On D.column_name = S.column_name
+		WHERE S.datatypename = D.datatypename AND S.max_length = D.max_length AND S.precision = D.precision AND S.scale = D.scale
+		
+		--SELECT @vColumn_List
+
+		/*Check Taget RowCount*/
+		DECLARE @_vSourceRCSQL NVARCHAR(MAX)='', @_vDestRCSQL NVARCHAR(MAX)='', @_vSrcRC BIGINT = 0, @_vDestRC BIGINT = 0
+		DECLARE @Records TABLE(ETLBatchID INT,CurrentSourceRowCount BIGINT,CurrentDestinationRowCount BIGINT)
+
+		SET @_vSourceRCSQL='SELECT @_vSrcRC = COUNT_BIG(1) FROM '+ @vSourceServerName +'.' + @vSourceDBName + '.' + @vSourceSchemaName + '.' + @vSourceTableName + ' WITH(nolock)'
+		EXECUTE SP_EXECUTESQL @_vSourceRCSQL, N'@_vSrcRC BIGINT OUTPUT', @_vSrcRC OUTPUT
+
+		SET @_vDestRCSQL='SELECT @_vDestRC = COUNT_BIG(1) FROM '+ @vTargetServerName +'.' + @vTargetDBName + '.' + @vTargetSchemaName + '.' + @vTargetTableName + ' WITH(nolock)'
+		EXECUTE SP_EXECUTESQL @_vDestRCSQL, N'@_vDestRC BIGINT OUTPUT', @_vDestRC OUTPUT
+
+		IF(@_vSrcRC = @_vDestRC)
+			PRINT CAST(@_vSrcRC AS VARCHAR)+' '+CAST(@_vDestRC AS VARCHAR)+' No Change In Data'
+		ELSE
+		BEGIN
+			PRINT 'Insert Delta Records'
+			/*Insert Delta Records*/
+			/*BCP_OUT Deta Records*/
+			DECLARE @BCP_OUT NVARCHAR(4000), @Filename VARCHAR(4000)
+			SET @Filename = '\\hps.com\plano\HomeDrive1$\Raghavendra.Kumar$\AbiToSSIS_Files\BCP_Files\'+ @vTargetServerName + '.' + @vTargetDBName + '.' + @vTargetSchemaName + '.' + @vTargetTableName +'.dat'
+
+			SET @_vIsDataSQL = 'SELECT '+ @vColumn_List + ' FROM ' + @vSourceServerName + '.' + @vSourceDBName + '.' + @vSourceSchemaName + '.' + @vSourceTableName + ' WITH(nolock)'
+							   /*+ ' EXCEPT '+
+							   'SELECT '+ @vColumn_List + ' FROM ' + @vTargetServerName +'.' + @vTargetDBName + '.' + @vTargetSchemaName + '.' + @vTargetTableName + ' WITH(nolock)'
+							   --*/
+			PRINT @_vIsDataSQL
+			
+			SET @BCP_OUT = '"' + @_vIsDataSQL + '" queryout ' + @Filename + ' -c -T -b 10000 -S ' + @vSourceServerName + ' -e ' + @Filename + '_errorOUT.dat'
+			--DECLARE @BATCHSIZE NVARCHAR(50) = ' WITH (BATCHSIZE = 10000);'
+			--SELECT @BCP_OUT=CAST(@BCP_OUT as NVARCHAR(4000))+@BATCHSIZE
+			SELECT  @BCP_OUT AS BCP_OUT
+			--EXEC sp_executesql @BCP_OUT
+		END
+
+	END
+	ELSE
+	BEGIN
+		DECLARE @TempColumnList NVARCHAR(MAX)
+
+		SET @_vIsDataSQL = 'SELECT @TempColumnList =  COALESCE(@TempColumnList+'','' ,'''')+ ''[''+column_name +''] ''+CHAR(10) FROM '+ @vSourceServerName + '.' + @vSourceDBName +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+@vSourceTableName+''' AND TABLE_SCHEMA = '''+@vSourceSchemaName+''' ORDER BY ORDINAL_POSITION'
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL, N'@TempColumnList NVARCHAR(MAX) OUTPUT', @TempColumnList OUTPUT
+		
+		--DECLARE @BATCHSIZE NVARCHAR(50) = ' WITH (BATCHSIZE = 10000);',@SQL NVARCHAR(4000)
+		--SELECT @SQL=CAST(@SQL_IN as NVARCHAR(4000))+@BATCHSIZE
+
+		SET @_vIsDataSQL = 'EXEC '+@vTargetServerName +'.'+ QUOTENAME(@vTargetDBName) + '..SP_EXECUTESQL N'''+'SELECT '+@TempColumnList+' INTO ['+@vTargetSchemaName+'].['+@vTargetTableName+'] FROM '+@vSourceServerName+'.'+@vSourceDBName+'.'+@vSourceSchemaName+'.'+@vSourceTableName+''''
+		EXECUTE SP_EXECUTESQL @_vIsDataSQL
+	END
+END
+
+END
+GO
+/****** Object:  StoredProcedure [dbo].[GenerateDAF250_GetFilespecDetailsRank_GenNext]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[GenerateDAF250_GetFilespecDetailsRank_GenNext]
+AS
+BEGIN
+
+IF OBJECT_ID (N'TempDB..##Priority_Q', N'U') IS NULL 
+	CREATE TABLE ##Priority_Q(ID INT IDENTITY, FileSpecID INT, LoadPriority INT, IsLoading INT DEFAULT 0)
+
+IF NOT EXISTS(SELECT 1 FROM ##Priority_Q)
+BEGIN
+	IF NOT EXISTS(SELECT 1 FROM dbo.KayakLoadQueue WHERE QueueName = 'DAF Generation' AND FileTypeName = 'DAF250' AND LoadStatus = 'PENDING')
+		PRINT 'QUEUE FINISHED'
+	ELSE
+	BEGIN
+
+		INSERT INTO ##Priority_Q(FileSpecID,LoadPriority)
+		SELECT  FileSpecID, CASE WHEN FileSpecID = 5226 THEN 3 WHEN FileSpecID IN (5219, 5334) THEN 2 WHEN FileSpecID = 5319 THEN 1 ELSE 0 END AS load_priority
+		FROM dbo.KayakLoadQueue WITH (nolock) 
+		WHERE QueueName = 'DAF Generation' AND FileTypeName = 'DAF250' AND LoadStatus = 'PENDING'
+		ORDER BY load_priority DESC,FileSpecID DESC
+
+		UPDATE TOP (1) ##Priority_Q SET IsLoading = 1
+	END
+END
+ELSE
+BEGIN
+	DELETE TOP (1) FROM ##Priority_Q
+	UPDATE TOP (1) ##Priority_Q SET IsLoading = 1
+END
+
+IF NOT EXISTS(SELECT 1 FROM ##Priority_Q) AND NOT EXISTS(SELECT 1 FROM dbo.KayakLoadQueue WHERE  QueueName = 'DAF Generation' AND FileTypeName = 'DAF250' AND LoadStatus = 'PENDING')
+BEGIN
+	SELECT -1 AS FileSpecID, 0 AS StartDateID, 0 AS EndDateID, '' AS FileTypeName, '' AS QueueName, 0 AS BusinessDateUTCID
+	
+	IF OBJECT_ID (N'TempDB..##Priority_Q', N'U') IS NOT NULL DROP TABLE TempDB..##Priority_Q
+END
+ELSE
+BEGIN
+	SELECT PQ.FileSpecID, KLQ.StartDateID, KLQ.EndDateID, KLQ.FileTypeName,KLQ.QueueName,KLQ.StartDateID AS BusinessDateUTCID FROM ##Priority_Q PQ 
+	INNER JOIN dbo.KayakLoadQueue KLQ On PQ.FileSpecID = KLQ.FileSpecID
+	WHERE PQ.IsLoading = 1 AND KLQ.QueueName = 'DAF Generation' AND KLQ.FileTypeName = 'DAF250'
+END
+END
+GO
+/****** Object:  StoredProcedure [dbo].[GetTableLoadId_GenNext]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[GetTableLoadId_GenNext]
+AS
+BEGIN
+
+DECLARE @T TABLE (
+[TableLoadId] INT
+,[SourceServerName] NVARCHAR(128)
+,[SourceDBName] NVARCHAR(128)
+,[SourceSchemaName] NVARCHAR(128)
+,[SourceTableName] NVARCHAR(128)
+,[TargetServerName] NVARCHAR(128)
+,[TargetDBName] NVARCHAR(128)
+,[TargetSchemaName] NVARCHAR(128)
+,[TargetTableName] NVARCHAR(128)
+,[LoadType] VARCHAR(10)
+)
+
+UPDATE TOP (1) [dbo].[DataTransfer_Config]
+SET LoadStatus = 'LOADING', LoadStartTime = GETDATE()
+OUTPUT 
+inserted.[TableLoadID]
+,inserted.[SourceServerName]
+,inserted.[SourceDBName]
+,inserted.[SourceSchemaName]
+,inserted.[SourceTableName]
+,inserted.[TargetServerName]
+,inserted.[TargetDBName]
+,inserted.[TargetSchemaName]
+,inserted.[TargetTableName]
+,inserted.[LoadType]
+INTO @T
+WHERE LoadStatus = 'PENDING'
+AND IsActive = 1
+--AND ScheduleStartTime <= CAST(FORMAT(GETDATE(),'HHmm') AS INT)
+
+IF @@ROWCOUNT = 0
+	BEGIN
+	SELECT -1 AS TableLoadId
+		, '' AS SourceServerName
+		, '' AS SourceDBName
+		, '' AS SourceSchemaName
+		, '' AS SourceTableName
+		, '' AS TargetServerName
+		, '' AS TargetDBName
+		, '' AS TargetSchemaName
+		, '' AS TargetTableName
+		, '' AS LoadType
+	END
+ELSE
+	BEGIN
+	 SELECT [TableLoadId]
+      ,[SourceServerName]
+      ,[SourceDBName]
+      ,[SourceSchemaName]
+      ,[SourceTableName]
+      ,[TargetServerName]
+      ,[TargetDBName]
+      ,[TargetSchemaName]
+      ,[TargetTableName]
+	  ,[LoadType]
+	  FROM @T
+	END
+
+END
+GO
+/****** Object:  StoredProcedure [dbo].[KayakLoadQueue_GetNext]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE PROCEDURE [dbo].[KayakLoadQueue_GetNext]
+	@QueueName varchar(50)
+as
+
+declare @T table (FileSpecID int, StartDateID int, EndDateID int, FileTypeName varchar(50))
+
+update top (1) [dbo].[KayakLoadQueue]
+set LoadStatus = 'LOADING'
+output inserted.FileSpecID, inserted.StartDateID, inserted.EndDateID, inserted.FileTypeName
+into @T
+where QueueName = @QueueName
+and LoadStatus = 'PENDING'
+
+if @@rowcount = 0
+	begin
+	select -1 AS FileSpecID, 0 AS StartDateID, 0 AS EndDateID, '' AS FileTypeName
+	end
+else
+	begin
+	select FileSpecID, StartDateID, EndDateID, FileTypeName from @T
+	end
+GO
+/****** Object:  StoredProcedure [dbo].[KayakLoadQueue_GetNext_New]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[KayakLoadQueue_GetNext_New]
+AS
+BEGIN
+DECLARE @T table (FileSpecID int, StartDateID int, EndDateID int, FileTypeName varchar(50))
+
+IF NOT EXISTS(SELECT 1 FROM Priority_Q)
+BEGIN
+	IF NOT EXISTS(SELECT 1 FROM dbo.KayakLoadQueue WHERE QueueName = 'DAF Generation' AND FileTypeName = 'DAF250' AND LoadStatus = 'PENDING')
+		PRINT 'QUEUE FINISHED'
+	ELSE
+	BEGIN
+		DBCC CHECKIDENT ('[Priority_Q]', RESEED, 0);
+
+		INSERT INTO Priority_Q(FileSpecID,LoadPriority)
+		SELECT  FileSpecID, CASE WHEN FileSpecID = 5226 THEN 3 WHEN FileSpecID IN (5219, 5334) THEN 2 WHEN FileSpecID = 5319 THEN 1 ELSE 0 END AS load_priority
+		FROM dbo.KayakLoadQueue WITH (nolock) 
+		WHERE QueueName = 'DAF Generation' AND FileTypeName = 'DAF250' AND LoadStatus = 'PENDING'
+		ORDER BY load_priority DESC
+
+		UPDATE TOP (1) Priority_Q SET IsLoading = 1
+	END
+END
+ELSE
+BEGIN
+	DELETE TOP (1) FROM Priority_Q
+	UPDATE TOP (1) Priority_Q SET IsLoading = 1
+END
+
+UPDATE TOP (1) K 
+SET K.LoadStatus = 'LOADING'
+OUTPUT inserted.FileSpecID, inserted.StartDateID, inserted.EndDateID, inserted.FileTypeName
+INTO @T
+FROM [dbo].[KayakLoadQueue]  K
+WHERE K.QueueName = 'DAF Generation'
+AND FileTypeName='DAF250'
+AND K.LoadStatus = 'PENDING'
+AND K.FileSpecID = (SELECT TOP 1 FileSpecID FROM Priority_Q WHERE IsLoading = 1)
+
+
+IF (NOT EXISTS(SELECT 1 FROM Priority_Q) AND NOT EXISTS(SELECT 1 FROM dbo.KayakLoadQueue WHERE  QueueName = 'DAF Generation' AND FileTypeName = 'DAF250' AND LoadStatus = 'PENDING')) OR NOT EXISTS(SELECT 1 FROM @T)
+BEGIN
+	SELECT -1 AS FileSpecID, 0 AS StartDateID, 0 AS EndDateID, '' AS FileTypeName
+END
+ELSE
+BEGIN
+	SELECT FileSpecID, StartDateID, EndDateID, FileTypeName from @T
+END
+END
+GO
+/****** Object:  StoredProcedure [dbo].[SP_DynamicDataLoad]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[SP_DynamicDataLoad]
+@TableLoadID INT
+,@source_server NVARCHAR(128)
+,@source_database NVARCHAR(128)
+,@source_tableschema NVARCHAR(128)
+,@source_tablename NVARCHAR(128)
+,@destination_server NVARCHAR(128)
+,@destination_database NVARCHAR(128)
+,@destination_tableschema NVARCHAR(128)
+,@destination_tablename NVARCHAR(128)
+,@LoadType VARCHAR(10)
+AS
+BEGIN
+/*
+USE HPSMaster
+go
+EXEC ConcurrencyTest.dbo.SP_DynamicDataLoad 1, 'JVLDB06', 'PinDebit', 'dbo', 'ProviderDenial', 'HALNLEVSQLD01', 'HPSMaster', 'dbo', 'ProviderDenial', 'Upsert' 
+
+DECLARE @source_tablename NVARCHAR(128)='ProviderDenial'
+DECLARE @destination_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+,@destination_tablename NVARCHAR(128)='[' + @source_tablename + ']'
+,@destination_database NVARCHAR(128)='[' + 'HPSMaster' + ']'
+,@source_server NVARCHAR(128)='[' + 'JVLDB06' + ']'
+,@source_database NVARCHAR(128)='[' + 'PinDebit' + ']'
+,@source_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+*/
+
+DECLARE @_vDynSQL NVARCHAR(MAX)='', @_vDynSQLFinal NVARCHAR(MAX)='', @_vIsData INT
+
+SET @_vDynSQL = 'SELECT @_vIsData = objectproperty(object_id('''+@destination_tablename+'''), ''TableHasIdentity'')'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+
+SET NOCOUNT ON; 
+
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal = ' SET IDENTITY_INSERT [dbo].[' + @destination_tablename + '] ON;
+    '
+
+DECLARE @sql VARCHAR(MAX) = ''
+DECLARE @list VARCHAR(MAX) = '';
+
+SELECT @list = @list + [name] +', '
+FROM SYS.COLUMNS
+WHERE OBJECT_ID = OBJECT_ID(@destination_tablename)
+
+SET @_vDynSQLFinal += 'MERGE ' + @destination_server +'.' + @destination_database +'.'+ @destination_tableschema + '.' + @destination_tablename + ' AS t '
+				+'USING (SELECT ' + SUBSTRING(RTRIM(@list),1,LEN(RTRIM(@list))-1) + '  
+				  FROM ' + @source_server + '.' + @source_database + '.' + @source_tableschema + '.' + @source_tablename + ' WITH(NOLOCK)) AS s '
+
+-- Get the join columns ----------------------------------------------------------
+SET @list = ''
+SELECT     @list = @list + ' t.[' + c.COLUMN_NAME + '] = s.[' +  c.COLUMN_NAME + '] AND '
+FROM     INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+    INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+WHERE     pk.TABLE_NAME = @destination_tablename
+AND    CONSTRAINT_TYPE = 'PRIMARY KEY'
+AND    c.TABLE_NAME = pk.TABLE_NAME
+AND    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME
+
+SELECT @list =  LEFT(@list, LEN(@list) -3)
+SET @_vDynSQLFinal += ' ON ( ' + @list + ')'
+
+
+-- WHEN MATCHED ------------------------------------------------------------------
+SET @_vDynSQLFinal += ' WHEN MATCHED THEN UPDATE SET '
+
+SELECT @list = '';
+SELECT @list = @list + '    [' + [name] +  '] = s.[' + [name] +'],
+'
+from sys.columns
+where object_id = object_id(@source_tablename)
+-- don't update primary keys
+and [name] NOT IN (SELECT  [column_name]
+                    from     INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+                            INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+                    where     pk.TABLE_NAME = @destination_tablename
+                    and    CONSTRAINT_TYPE = 'PRIMARY KEY'
+                    and    c.TABLE_NAME = pk.TABLE_NAME
+                    and    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME)
+-- and don't update identity columns
+and columnproperty(object_id(@source_tablename), [name], 'IsIdentity ') = 0                    
+--print @list                    
+SET @_vDynSQLFinal += LEFT(@list, LEN(@list) -3 )
+
+-- WHEN NOT MATCHED BY TARGET ------------------------------------------------
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY TARGET THEN ';
+
+-- Get the insert list
+SET @list = ''
+
+SELECT @list = @list + ' [' + [name] +'], '
+FROM SYS.COLUMNS
+WHERE OBJECT_ID = OBJECT_ID(@source_tablename)
+
+SELECT @list = LEFT(@list, LEN(@list) - 1)
+
+SET @_vDynSQLFinal += '    INSERT(' + @list + ') '
+
+-- GET THE VALUES LIST
+SET @list = ''
+
+SELECT @list = @list + ' s.[' +[name] +'], '
+FROM SYS.COLUMNS
+WHERE OBJECT_ID = OBJECT_ID(@source_tablename)
+
+SELECT @list = LEFT(@list, LEN(@list) - 1)
+
+SET @_vDynSQLFinal += '    VALUES(' + @list + ') '
+
+-- WHEN NOT MATCHED BY SOURCE
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY SOURCE THEN DELETE; '
+
+-- SET THE IDENTITY INSERT OFF FOR TABLES WITH IDENTITIES
+SET @_vDynSQL = 'SELECT @_vIsData = objectproperty(object_id('''+@destination_tablename+'''), ''TableHasIdentity'')'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal += 'SET IDENTITY_INSERT [dbo].[' + @destination_tablename + '] OFF;
+    '
+--PRINT @_vDynSQLFinal
+EXECUTE SP_EXECUTESQL @_vDynSQLFinal
+
+UPDATE [ConcurrencyTest].[dbo].[DataTransfer_Config] 
+SET [LoadStatus] = 'COMPLETED' , [LoadEndTime] = GETDATE()
+WHERE [TableLoadID] = @TableLoadID
+
+END
+GO
+/****** Object:  StoredProcedure [dbo].[SP_DynamicDataLoad_Generic]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[SP_DynamicDataLoad_Generic]
+@TableLoadID INT
+,@source_server NVARCHAR(128)
+,@source_database NVARCHAR(128)
+,@source_tableschema NVARCHAR(128)
+,@source_tablename NVARCHAR(128)
+,@destination_server NVARCHAR(128)
+,@destination_database NVARCHAR(128)
+,@destination_tableschema NVARCHAR(128)
+,@destination_tablename NVARCHAR(128)
+,@LoadType VARCHAR(10)
+AS
+BEGIN
+/*
+USE HPSMaster
+go
+EXEC ConcurrencyTest.dbo.SP_DynamicDataLoad 1, 'JVLDB06', 'PinDebit', 'dbo', 'ProviderDenial', 'HALNLEVSQLD01', 'HPSMaster', 'dbo', 'ProviderDenial', 'Upsert' 
+
+DECLARE @source_tablename NVARCHAR(128)='ProviderDenial'
+DECLARE @destination_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+,@destination_tablename NVARCHAR(128)='[' + @source_tablename + ']'
+,@destination_database NVARCHAR(128)='[' + 'HPSMaster' + ']'
+,@source_server NVARCHAR(128)='[' + 'JVLDB06' + ']'
+,@source_database NVARCHAR(128)='[' + 'PinDebit' + ']'
+,@source_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+*/
+SET NOCOUNT ON; 
+DECLARE @_vDynSQL NVARCHAR(MAX)='', @_vDynSQLFinal NVARCHAR(MAX)='', @_vIsData INT, @_vobjId VARCHAR(100)
+
+/*Get Target Table Object_ID*/
+SET @_vDynSQL = 'SELECT @_vobjId = OBJECT_ID
+        FROM '+@destination_database+'.SYS.OBJECTS o
+		INNER JOIN '+@destination_database+'.SYS.SCHEMAS s On o.SCHEMA_ID = s.SCHEMA_ID
+        WHERE o.name = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+'''
+		AND s.name = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''''
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vobjId VARCHAR(100) OUTPUT', @_vobjId OUTPUT
+
+/*Get Target Table IDENTITY Column Info*/
+SET @_vDynSQL = '
+SELECT @_vIsData = is_identity
+FROM '+@destination_database+'.SYS.IDENTITY_COLUMNS
+WHERE OBJECT_ID = ('+@_vobjId+')'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal = ' SET IDENTITY_INSERT ['+@destination_database+'].['+@destination_tableschema+'].[' + @destination_tablename + '] ON;
+    '
+
+DECLARE @list VARCHAR(MAX);
+
+/*Get Target Table Column List*/
+SET @_vDynSQL = 'SELECT @list =  COALESCE(@list+'','' ,'''')+ ''[''+column_name +''] ''+CHAR(10) FROM '+ @destination_database +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+''' AND TABLE_SCHEMA = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''' ORDER BY ORDINAL_POSITION'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+
+
+SET @_vDynSQLFinal += 'MERGE ' + @destination_server +'.' + @destination_database +'.'+ @destination_tableschema + '.' + @destination_tablename + ' AS t '
+				+'USING (SELECT ' + @list + '  
+				  FROM ' + @source_server + '.' + @source_database + '.' + @source_tableschema + '.' + @source_tablename + ' WITH(NOLOCK)) AS s '
+
+/* Get The Join Columns */
+SET @list = ''
+SET @_vDynSQL ='
+SELECT     @list = @list + '' t.['' + c.COLUMN_NAME + ''] = s.['' +  c.COLUMN_NAME + ''] AND ''
+FROM '+ @destination_database +'.INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+    '+ @destination_database +'.INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+WHERE     pk.TABLE_NAME = REPLACE(REPLACE('''+@destination_tablename+''',''['',''''),'']'','''')
+AND    CONSTRAINT_TYPE = ''PRIMARY KEY''
+AND    c.TABLE_NAME = pk.TABLE_NAME
+AND    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME'
+
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+SELECT @list =  LEFT(@list, LEN(@list) -3)
+SET @_vDynSQLFinal += ' ON ( ' + @list + ')'
+
+
+/* Get WHEN MATCHED */
+SET @_vDynSQLFinal += ' WHEN MATCHED THEN UPDATE SET '
+
+SELECT @list = '';
+SET @_vDynSQL ='
+SELECT @list = @list + ''    ['' + [name] +  ''] = s.['' + [name] +''],
+''
+from  '+ @destination_database +'.sys.columns
+where object_id = ('+@_vobjId+')
+and [name] NOT IN (SELECT  [column_name]
+                    from     '+ @destination_database +'.INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+                             '+ @destination_database +'.INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+                    where     pk.TABLE_NAME = REPLACE(REPLACE('''+@destination_tablename+''',''['',''''),'']'','''')
+                    and    CONSTRAINT_TYPE = ''PRIMARY KEY''
+                    and    c.TABLE_NAME = pk.TABLE_NAME
+                    and    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME)
+and is_identity = 0'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+SET @_vDynSQLFinal += LEFT(@list, LEN(@list) -3 )
+
+/* Get WHEN NOT MATCHED BY TARGET */
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY TARGET THEN ';
+
+/* Get The Insert List */
+SET @list = ''
+
+SET @_vDynSQL = 'SELECT @list =  COALESCE(@list+'','' ,'''')+ ''[''+column_name +''] ''+CHAR(10) FROM '+ @destination_database +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+''' AND TABLE_SCHEMA = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''' ORDER BY ORDINAL_POSITION'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+
+SELECT @list = RIGHT(@list, LEN(@list) - 1)
+SET @_vDynSQLFinal += '    INSERT(' + @list + ') '
+
+/* Get The VALUES List */
+SET @list = ''
+
+SET @_vDynSQL = 'SELECT @list =  COALESCE(@list+'','' ,'''')+ '' s.[''+column_name +''] ''+CHAR(10) FROM '+ @destination_database +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+''' AND TABLE_SCHEMA = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''' ORDER BY ORDINAL_POSITION'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+
+SELECT @list = RIGHT(@list, LEN(@list) - 1)
+SET @_vDynSQLFinal += '    VALUES(' + @list + ') '
+
+/* WHEN NOT MATCHED BY SOURCE */
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY SOURCE THEN DELETE; '
+
+/* SET THE IDENTITY INSERT OFF FOR TABLES WITH IDENTITIES */
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal += ' SET IDENTITY_INSERT ['+@destination_database+'].['+@destination_tableschema+'].[' + @destination_tablename + '] OFF;
+    '
+--PRINT @_vDynSQLFinal
+EXECUTE SP_EXECUTESQL @_vDynSQLFinal
+
+--SELECT @@ROWCOUNT
+
+UPDATE [ConcurrencyTest].[dbo].[DataTransfer_Config]
+SET [LoadStatus] = 'COMPLETED' , [LoadEndTime] = GETDATE(), LoadedRowCount = @@ROWCOUNT
+WHERE [TableLoadID] = @TableLoadID
+
+END
+GO
+/****** Object:  StoredProcedure [dbo].[VAPS_NTS_1_GetFileNames]    Script Date: 1/17/2023 1:57:36 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE PROCEDURE [dbo].[VAPS_NTS_1_GetFileNames]
+@FolderLoc VARCHAR(1000)
+AS
+BEGIN
+DECLARE @FileNameTab AS TABLE(ID INT IDENTITY, FileNames VARCHAR(4000))
+DECLARE @BatchCmd NVARCHAR(2000) = 'for %f in ('+@FolderLoc+'\*) do @echo %f'
+
+INSERT INTO @FileNameTab
+EXEC master..xp_CMDShell @BatchCmd
+
+--DECLARE @LocString VARCHAR(500) = 'C:\Users\Raghavendra.Kumar\Documents\Nts_1_Run.txt'
+--SELECT REVERSE(SUBSTRING(REVERSE(@LocString),0,CHARINDEX('\',REVERSE(@LocString))))
+
+SELECT REVERSE(SUBSTRING(REVERSE(FileNames),0,CHARINDEX('\',REVERSE(FileNames)))) AS Nts_FileNames
+FROM @FileNameTab WHERE FileNames LIKE '%NTS_1%'
+
+END
+GO
 

@@ -1,0 +1,78 @@
+USE master
+GO
+--kill 186
+--DBCC INPUTBUFFER(157);
+--GO
+----sp_who2 active;
+----GO
+----EXEC sys.xp_logininfo 'HPS\DevelopmentSQLDev','members'
+----EXEC sys.xp_logininfo 'HPS\NileshS.Kumbhar','all'
+---xp_fixeddrives
+
+--select nt_username,* from sys.sysprocesses where blocked <> 0
+--select nt_username,* from sys.sysprocesses where nt_username = 
+
+--select * from sys.dm_exec_connections
+--select * from sys.dm_exec_sessions
+--select * from sys.dm_exec_requests where session_id = 186
+
+DECLARE @SPID int
+SET @SPID = NULL
+
+SELECT 
+'kill '+cast(er.session_id as varchar)
+,er.session_id as SPID
+,ses.[status] as [Status]
+,ses.login_name as [Login]
+,ses.[host_name] as Host
+,er.blocking_session_id as BlkBy
+,DB_NAME(er.database_id) as DBName
+,er.command as CommandType
+----,er.percent_complete as [Complete%]
+----,p.[query_plan]
+--,SUBSTRING(qt.[text],er.statement_start_offset/2
+--,(CASE WHEN er.statement_end_offset = -1 THEN LEN(CONVERT(varchar(max),qt.[text]))*2 ELSE er.statement_end_offset END - er.statement_start_offset)/2) as SQLStatement1
+,SUBSTRING(qt.[text],er.statement_start_offset/2
+,CASE WHEN (CASE WHEN er.statement_end_offset = -1 THEN LEN(CONVERT(varchar(max),qt.[text]))*2 ELSE er.statement_end_offset END - er.statement_start_offset)<0 THEN 1 ELSE
+(CASE WHEN er.statement_end_offset = -1 THEN LEN(CONVERT(varchar(max),qt.[text]))*2 ELSE er.statement_end_offset END - er.statement_start_offset) END /2 ) as SQLStatement
+--,qt.[text]
+--,er.statement_start_offset/2
+--,CASE WHEN (CASE WHEN er.statement_end_offset = -1 THEN LEN(CONVERT(varchar(max),qt.[text]))*2 ELSE er.statement_end_offset END - er.statement_start_offset)<0 THEN 1 ELSE
+--(CASE WHEN er.statement_end_offset = -1 THEN LEN(CONVERT(varchar(max),qt.[text]))*2 ELSE er.statement_end_offset END - er.statement_start_offset) END /2 
+,OBJECT_SCHEMA_NAME(qt.objectid,qt.[dbid]) + '.' + OBJECT_NAME(qt.objectid, qt.[dbid]) as ObjectName
+--,er.total_elapsed_time as ElapsedMS
+,er.total_elapsed_time as ElapsedMS
+,er.total_elapsed_time / (1000 * 60)  as ElapsedMin
+,er.cpu_time as CPUTime
+,er.logical_reads + er.reads as IOReads
+,er.writes as IOWrites
+,er.last_wait_type as LastWaitType
+,er.start_time as StartTime
+,con.net_transport as Protocol
+,con.num_writes as ConnectionWrites
+,con.num_reads as ConnectionReads
+,con.client_net_address as ClientAddress
+,con.auth_scheme as [Authentication]
+,GETDATE() as DataCollectedTime
+FROM sys.dm_exec_requests er
+LEFT JOIN sys.dm_exec_sessions ses ON ses.session_id = er.session_id
+LEFT JOIN sys.dm_exec_connections con ON con.session_id = ses.session_id
+OUTER APPLY sys.dm_exec_sql_text(er.[sql_handle]) as qt
+--CROSS APPLY sys.dm_exec_query_plan(er.plan_handle) p
+WHERE er.session_id > 50 and (@SPID is null OR er.session_id = @SPID)
+--and OBJECT_SCHEMA_NAME(qt.objectid,qt.[dbid]) + '.' + OBJECT_NAME(qt.objectid, qt.[dbid]) like '%FDF%'
+--and ses.[host_name]='JVLHIC01'
+--and er.last_wait_type='RESOURCE_SEMAPHORE'
+--er.total_elapsed_time DESC
+--and DB_NAME(er.database_id) = 'PassportDW'
+--and ses.login_name ='HPS\Ganesh.Bekkinkeri'
+--and er.session_id = 250
+ORDER BY er.blocking_session_id DESC
+,er.session_id DESC
+,ses.[host_name] DESC
+
+--Select * from sys.sysaltfiles where name like '%FG_PS_Int_TermTOT_2020%'
+--USE PassportDW;   
+--GRANT EXECUTE ON SCHEMA::dbo
+--    TO [HPS\BTS_SQL_Dev_Group];  
+--GO

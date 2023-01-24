@@ -1,0 +1,275 @@
+USE [ETLControlDB]
+GO
+/****** Object:  Schema [DynamicMergeETL]    Script Date: 1/24/2023 9:38:30 AM ******/
+CREATE SCHEMA [DynamicMergeETL]
+GO
+/****** Object:  Table [DynamicMergeETL].[TableLoadControl]    Script Date: 1/24/2023 9:38:30 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [DynamicMergeETL].[TableLoadControl](
+	[TableLoadControlId] [int] IDENTITY(1,1) NOT NULL,
+	[SourceServerName] [varchar](500) NULL,
+	[SourceDatabaseName] [varchar](500) NULL,
+	[SourceSchemaName] [varchar](500) NULL,
+	[SourceTableName] [varchar](500) NULL,
+	[TargetServerName] [varchar](500) NULL,
+	[TargetDatabaseName] [varchar](500) NULL,
+	[TargetSchemaName] [varchar](500) NULL,
+	[TargetTableName] [varchar](500) NULL,
+	[LoadType] [varchar](10) NULL,
+	[LoadFrequency] [int] NULL,
+	[LoadStartTime] [datetime] NULL,
+	[LoadEndTime] [datetime] NULL,
+	[LoadStatus] [varchar](10) NULL,
+	[DateAdded] [datetime] NULL,
+	[IsActive] [bit] NULL,
+	[LoadedRowCount] [bigint] NULL,
+ CONSTRAINT [PK_TableLoadControl] PRIMARY KEY CLUSTERED 
+(
+	[TableLoadControlId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+ALTER TABLE [DynamicMergeETL].[TableLoadControl] ADD  DEFAULT (getdate()) FOR [DateAdded]
+GO
+ALTER TABLE [DynamicMergeETL].[TableLoadControl] ADD  DEFAULT ((1)) FOR [IsActive]
+GO
+/****** Object:  StoredProcedure [DynamicMergeETL].[GenerateDynamicTableLoadMerge]    Script Date: 1/24/2023 9:38:30 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE PROCEDURE [DynamicMergeETL].[GenerateDynamicTableLoadMerge]
+@TableLoadControlId INT
+,@source_server NVARCHAR(128)
+,@source_database NVARCHAR(128)
+,@source_tableschema NVARCHAR(128)
+,@source_tablename NVARCHAR(128)
+,@destination_server NVARCHAR(128)
+,@destination_database NVARCHAR(128)
+,@destination_tableschema NVARCHAR(128)
+,@destination_tablename NVARCHAR(128)
+,@LoadType VARCHAR(10)
+AS
+BEGIN
+/*
+
+EXEC [DynamicMergeETL].[GenerateDynamicTableLoadMerge] 1, 'JVLDB06', 'PinDebit', 'dbo', 'ProviderDenial', 'HALNLEVSQLD01', 'HPSMaster', 'dbo', 'ProviderDenial', 'Upsert' 
+
+DECLARE @source_tablename NVARCHAR(128)='ProviderDenial'
+DECLARE @destination_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+,@destination_tablename NVARCHAR(128)='[' + @source_tablename + ']'
+,@destination_database NVARCHAR(128)='[' + 'HPSMaster' + ']'
+,@source_server NVARCHAR(128)='[' + 'JVLDB06' + ']'
+,@source_database NVARCHAR(128)='[' + 'PinDebit' + ']'
+,@source_tableschema NVARCHAR(128)='[' + 'dbo' + ']'
+*/
+SET NOCOUNT ON; 
+DECLARE @_vDynSQL NVARCHAR(MAX)='', @_vDynSQLFinal NVARCHAR(MAX)='', @_vIsData INT, @_vobjId VARCHAR(100)
+
+/*Get Target Table Object_ID*/
+SET @_vDynSQL = 'SELECT @_vobjId = OBJECT_ID
+        FROM '+@destination_database+'.SYS.OBJECTS o
+		INNER JOIN '+@destination_database+'.SYS.SCHEMAS s On o.SCHEMA_ID = s.SCHEMA_ID
+        WHERE o.name = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+'''
+		AND s.name = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''''
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vobjId VARCHAR(100) OUTPUT', @_vobjId OUTPUT
+
+/*Get Target Table IDENTITY Column Info*/
+SET @_vDynSQL = '
+SELECT @_vIsData = is_identity
+FROM '+@destination_database+'.SYS.IDENTITY_COLUMNS
+WHERE OBJECT_ID = ('+@_vobjId+')'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@_vIsData INT OUTPUT', @_vIsData OUTPUT
+
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal = ' SET IDENTITY_INSERT ['+@destination_database+'].['+@destination_tableschema+'].[' + @destination_tablename + '] ON;
+    '
+
+DECLARE @list VARCHAR(MAX);
+
+/*Get Target Table Column List*/
+SET @_vDynSQL = 'SELECT @list =  COALESCE(@list+'','' ,'''')+ ''[''+column_name +''] ''+CHAR(10) FROM '+ @destination_database +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+''' AND TABLE_SCHEMA = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''' ORDER BY ORDINAL_POSITION'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+
+
+SET @_vDynSQLFinal += 'MERGE ' + @destination_server +'.' + @destination_database +'.'+ @destination_tableschema + '.' + @destination_tablename + ' AS t '
+				+'USING (SELECT ' + @list + '  
+				  FROM ' + @source_server + '.' + @source_database + '.' + @source_tableschema + '.' + @source_tablename + ' WITH(NOLOCK)) AS s '
+
+/* Get The Join Columns */
+SET @list = ''
+SET @_vDynSQL ='
+SELECT     @list = @list + '' t.['' + c.COLUMN_NAME + ''] = s.['' +  c.COLUMN_NAME + ''] AND ''
+FROM '+ @source_server + '.' + @source_database +'.INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+    '+ @source_server + '.' + @source_database +'.INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+WHERE     pk.TABLE_NAME = REPLACE(REPLACE('''+@destination_tablename+''',''['',''''),'']'','''')
+AND    CONSTRAINT_TYPE = ''PRIMARY KEY''
+AND    c.TABLE_NAME = pk.TABLE_NAME
+AND    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME'
+
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+SELECT @list =  LEFT(@list, LEN(@list) -3)
+SET @_vDynSQLFinal += ' ON ( ' + @list + ')'
+
+
+/* Get WHEN MATCHED */
+SET @_vDynSQLFinal += ' WHEN MATCHED THEN UPDATE SET '
+
+SELECT @list = '';
+SET @_vDynSQL ='
+SELECT @list = @list + ''    ['' + [name] +  ''] = s.['' + [name] +''],
+''
+from  '+ @destination_database +'.sys.columns
+where object_id = ('+@_vobjId+')
+and [name] NOT IN (SELECT  [column_name]
+                    from     '+ @source_server + '.' + @source_database +'.INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk ,
+                             '+ @source_server + '.' + @source_database +'.INFORMATION_SCHEMA.KEY_COLUMN_USAGE c
+                    where     pk.TABLE_NAME = REPLACE(REPLACE('''+@destination_tablename+''',''['',''''),'']'','''')
+                    and    CONSTRAINT_TYPE = ''PRIMARY KEY''
+                    and    c.TABLE_NAME = pk.TABLE_NAME
+                    and    c.CONSTRAINT_NAME = pk.CONSTRAINT_NAME)
+and is_identity = 0'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+SET @_vDynSQLFinal += LEFT(@list, LEN(@list) - 3 )
+
+/* Get WHEN NOT MATCHED BY TARGET */
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY TARGET THEN ';
+
+/* Get The Insert List */
+SET @list = ''
+
+SET @_vDynSQL = 'SELECT @list =  COALESCE(@list+'','' ,'''')+ ''[''+column_name +''] ''+CHAR(10) FROM '+ @destination_database +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+''' AND TABLE_SCHEMA = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''' ORDER BY ORDINAL_POSITION'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+
+SELECT @list = RIGHT(@list, LEN(@list) - 1)
+SET @_vDynSQLFinal += '    INSERT(' + @list + ') '
+
+/* Get The VALUES List */
+SET @list = ''
+
+SET @_vDynSQL = 'SELECT @list =  COALESCE(@list+'','' ,'''')+ '' s.[''+column_name +''] ''+CHAR(10) FROM '+ @destination_database +'.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '''+REPLACE(REPLACE(@destination_tablename,'[',''),']','')+''' AND TABLE_SCHEMA = '''+REPLACE(REPLACE(@destination_tableschema,'[',''),']','')+''' ORDER BY ORDINAL_POSITION'
+EXECUTE SP_EXECUTESQL @_vDynSQL, N'@list VARCHAR(MAX) OUTPUT', @list OUTPUT
+
+SELECT @list = RIGHT(@list, LEN(@list) - 1)
+SET @_vDynSQLFinal += '    VALUES(' + @list + ') '
+
+/* WHEN NOT MATCHED BY SOURCE */
+SET @_vDynSQLFinal += ' WHEN NOT MATCHED BY SOURCE THEN DELETE; '
+
+/* SET THE IDENTITY INSERT OFF FOR TABLES WITH IDENTITIES */
+IF @_vIsData = 1 
+    SET @_vDynSQLFinal += ' SET IDENTITY_INSERT ['+@destination_database+'].['+@destination_tableschema+'].[' + @destination_tablename + '] OFF;
+    '
+--PRINT @_vDynSQLFinal
+EXECUTE SP_EXECUTESQL @_vDynSQLFinal
+
+--SELECT @@ROWCOUNT
+IF(@@ERROR <> 0)
+	UPDATE [DynamicMergeETL].[TableLoadControl]
+	SET [LoadStatus] = 'ERRORED' , [LoadEndTime] = NULL, LoadedRowCount = NULL
+	WHERE TableLoadControlId = @TableLoadControlId
+ELSE
+	UPDATE [DynamicMergeETL].[TableLoadControl]
+	SET [LoadStatus] = 'COMPLETED' , [LoadEndTime] = GETDATE(), LoadedRowCount = @@ROWCOUNT
+	WHERE TableLoadControlId = @TableLoadControlId
+
+END
+
+GO
+/****** Object:  StoredProcedure [DynamicMergeETL].[GetTableLoadControlId_GetNext]    Script Date: 1/24/2023 9:38:30 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE PROCEDURE [DynamicMergeETL].[GetTableLoadControlId_GetNext]
+AS
+BEGIN
+
+DECLARE @T TABLE (
+[TableLoadControlId] INT
+,[SourceServerName] NVARCHAR(128)
+,[SourceDatabaseName] NVARCHAR(128)
+,[SourceSchemaName] NVARCHAR(128)
+,[SourceTableName] NVARCHAR(128)
+,[TargetServerName] NVARCHAR(128)
+,[TargetDatabaseName] NVARCHAR(128)
+,[TargetSchemaName] NVARCHAR(128)
+,[TargetTableName] NVARCHAR(128)
+,[LoadType] VARCHAR(10)
+)
+
+UPDATE TOP (1) [DynamicMergeETL].[TableLoadControl]
+SET LoadStatus = 'LOADING', LoadStartTime = GETDATE(), LoadEndTime = NULL
+OUTPUT 
+inserted.[TableLoadControlId]
+,inserted.[SourceServerName]
+,inserted.[SourceDatabaseName]
+,inserted.[SourceSchemaName]
+,inserted.[SourceTableName]
+,inserted.[TargetServerName]
+,inserted.[TargetDatabaseName]
+,inserted.[TargetSchemaName]
+,inserted.[TargetTableName]
+,inserted.[LoadType]
+INTO @T
+WHERE LoadStatus = 'PENDING'
+AND IsActive = 1
+
+IF @@ROWCOUNT = 0
+	BEGIN
+	SELECT -1 AS TableLoadControlId
+		, '' AS SourceServerName
+		, '' AS SourceDatabaseName
+		, '' AS SourceSchemaName
+		, '' AS SourceTableName
+		, '' AS TargetServerName
+		, '' AS TargetDatabaseName
+		, '' AS TargetSchemaName
+		, '' AS TargetTableName
+		, '' AS LoadType
+	END
+ELSE
+	BEGIN
+	 SELECT [TableLoadControlId]
+      ,[SourceServerName]
+      ,[SourceDatabaseName]
+      ,[SourceSchemaName]
+      ,[SourceTableName]
+      ,[TargetServerName]
+      ,[TargetDatabaseName]
+      ,[TargetSchemaName]
+      ,[TargetTableName]
+	  ,[LoadType]
+	  FROM @T
+	END
+
+END
+
+GO
+/****** Object:  StoredProcedure [DynamicMergeETL].[ResetTableLoadControl]    Script Date: 1/24/2023 9:38:30 AM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE PROCEDURE [DynamicMergeETL].[ResetTableLoadControl]
+AS
+
+UPDATE [DynamicMergeETL].[TableLoadControl] 
+SET LoadStatus = 'PENDING'
+WHERE (
+(DATEDIFF(HOUR,COALESCE(LoadEndTime,GETDATE()),GETDATE()) > LoadFrequency)--MATCHES SYNC FREQUENCY
+OR 
+(LoadStartTime IS NULL)--NEW TABLE ADDED TO CONTROL TABLE
+OR
+(LoadStatus <> 'COMPLETED')--HANDLE PREVIOUS FAILURE
+)
+AND IsActive=1
+GO
